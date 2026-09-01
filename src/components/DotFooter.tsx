@@ -25,26 +25,26 @@ function DotLogo({ size = 22 }: { size?: number }) {
 
 export function DotFooter() {
   return (
-    <footer className="shrink-0 border-t border-slate-200/90 bg-white/95 backdrop-blur-sm px-4 sm:px-6 py-2.5 grid grid-cols-1 md:grid-cols-3 items-center justify-between gap-2.5 text-slate-500 text-xs shadow-2xs">
+    <footer className="shrink-0 border-t border-zinc-900 bg-[#050505]/95 backdrop-blur-sm px-4 sm:px-6 py-4 grid grid-cols-1 md:grid-cols-3 items-center justify-between gap-4 text-zinc-500 text-xs">
       <div className="flex items-center justify-center md:justify-start gap-2 order-2 md:order-1">
-        <span className="font-semibold text-slate-700">SLAM</span>
-        <span className="text-slate-300">•</span>
-        <span className="text-slate-500">© 2026 All rights reserved.</span>
+        <span className="font-semibold text-zinc-300 font-display tracking-widest">SLAM</span>
+        <span className="text-zinc-800">•</span>
+        <span className="text-zinc-500">© 2026 All rights reserved.</span>
       </div>
 
       <div className="flex items-center justify-center gap-2 order-1 md:order-2">
-        <span className="text-[10px] font-medium tracking-[0.14em] uppercase text-slate-400">Presented by</span>
-        <span className="flex items-center gap-1.5 text-[13px] font-black tracking-tight text-[#1E1E24]">
+        <span className="text-[10px] font-bold tracking-[0.14em] uppercase text-zinc-600">Presented by</span>
+        <span className="flex items-center gap-1.5 text-[13px] font-black tracking-tight text-white">
           <DotLogo size={22} />
           <span>.dot</span>
         </span>
       </div>
 
-      <nav className="flex items-center justify-center md:justify-end gap-4 sm:gap-5 text-[11px] font-medium text-slate-600 order-3">
-        <button type="button" className="hover:text-indigo-600 transition-colors cursor-pointer">About</button>
-        <button type="button" className="hover:text-indigo-600 transition-colors cursor-pointer">Privacy Policy</button>
-        <button type="button" className="hover:text-indigo-600 transition-colors cursor-pointer">Terms of Service</button>
-        <button type="button" className="hover:text-indigo-600 transition-colors cursor-pointer">Contact</button>
+      <nav className="flex items-center justify-center md:justify-end gap-4 sm:gap-5 text-[11px] font-medium text-zinc-500 order-3">
+        <button type="button" className="hover:text-white hover:text-yellow-400 transition-colors cursor-pointer">About</button>
+        <button type="button" className="hover:text-white hover:text-yellow-400 transition-colors cursor-pointer">Privacy Policy</button>
+        <button type="button" className="hover:text-white hover:text-yellow-400 transition-colors cursor-pointer">Terms of Service</button>
+        <button type="button" className="hover:text-white hover:text-yellow-400 transition-colors cursor-pointer">Contact</button>
       </nav>
     </footer>
   );
