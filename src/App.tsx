@@ -4,11 +4,10 @@ import { JobDiscoveryView } from './components/JobDiscoveryView';
 import { TrackerView } from './components/TrackerView';
 import { DotFooter } from './components/DotFooter';
 import { ResumeImporter } from './components/ResumeImporter';
+import { saveProfile } from './services/firebaseRest';
 import { UserProfile, JobPosting, ApplicationAnswer, ApplicationRecord, TailoredResume, ApplicationStatus } from './types';
 
-const emptyProfile: UserProfile = {
-  name:'',email:'',phone:'',location:'',country:'',timezone:'',headline:'',summary:'',yearsOfExperience:0,currentRole:'',targetRoles:[],industries:[],skills:[],technologies:[],certifications:[],education:[],workHistory:[],languages:[],workAuth:'Unknown',sponsorshipRequired:false,noticePeriod:'',availability:'',relocationPreference:'No',salaryExpectation:''
-};
+const emptyProfile: UserProfile = { name:'',email:'',phone:'',location:'',country:'',timezone:'',headline:'',summary:'',yearsOfExperience:0,currentRole:'',targetRoles:[],industries:[],skills:[],technologies:[],certifications:[],education:[],workHistory:[],languages:[],workAuth:'Unknown',sponsorshipRequired:false,noticePeriod:'',availability:'',relocationPreference:'No',salaryExpectation:'' };
 const API = import.meta.env.VITE_API_URL || '';
 
 export default function App() {
@@ -25,6 +24,7 @@ export default function App() {
   const [preparedAnswers,setPreparedAnswers]=useState<{question:string;answer:string}[]>([]);
 
   useEffect(()=>{localStorage.setItem('slam_user_profile',JSON.stringify(userProfile));},[userProfile]);
+  useEffect(()=>{if(userProfile.name||userProfile.email||userProfile.skills.length) void saveProfile(userProfile);},[userProfile]);
   useEffect(()=>{localStorage.setItem('slam_saved_job_ids',JSON.stringify(savedJobIds));},[savedJobIds]);
   useEffect(()=>{localStorage.setItem('slam_app_records',JSON.stringify(applicationRecords));},[applicationRecords]);
   useEffect(()=>{const query=userProfile.targetRoles[0]||userProfile.currentRole||'software engineer'; fetch(`${API}/api/jobs/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,remote:false,limit:30})}).then(r=>r.ok?r.json():null).then(d=>{if(d?.jobs)setJobs(d.jobs)}).catch(()=>{});},[userProfile.targetRoles,userProfile.currentRole]);
@@ -33,18 +33,13 @@ export default function App() {
   const toggleCompare=(job:JobPosting)=>setCompareJobIds(p=>p.includes(job.id)?p.filter(x=>x!==job.id):p.length<4?[...p,job.id]:p);
   const prepare=(job:JobPosting)=>{setSelectedJob(job);setActiveTab('discover');};
   const launch=(job:JobPosting,resume:TailoredResume|null,letter:string,answers:{question:string;answer:string}[])=>{setSelectedJob(job);setPreparedTailoredResume(resume);setPreparedCoverLetter(letter);setPreparedAnswers(answers);setActiveTab('discover');};
-  const saveTracker=(job:JobPosting,resume:TailoredResume|null,letter:string,answers:{question:string;answer:string}[])=>{
-    const record:ApplicationRecord={id:`app-${Date.now()}`,jobId:job.id,jobTitle:job.title,company:job.company,location:job.location,salaryText:job.salaryText,dateDiscovered:job.postingDate,status:'PREPARED',compatibilityScore:0,applicationMode:'REVIEW',tailoredResume:resume||undefined,coverLetter:letter||undefined,submittedAnswers:answers,notes:'Prepared by SLAM. User review required before submission.',applicationUrl:job.applicationUrl,source:job.primarySource,lastUpdated:new Date().toISOString()};
-    setApplicationRecords(p=>[record,...p.filter(x=>x.jobId!==job.id)]);setActiveTab('applications');
-  };
+  const saveTracker=(job:JobPosting,resume:TailoredResume|null,letter:string,answers:{question:string;answer:string}[])=>{const record:ApplicationRecord={id:`app-${Date.now()}`,jobId:job.id,jobTitle:job.title,company:job.company,location:job.location,salaryText:job.salaryText,dateDiscovered:job.postingDate,status:'PREPARED',compatibilityScore:0,applicationMode:'REVIEW',tailoredResume:resume||undefined,coverLetter:letter||undefined,submittedAnswers:answers,notes:'Prepared by SLAM. User review required before submission.',applicationUrl:job.applicationUrl,source:job.primarySource,lastUpdated:new Date().toISOString()};setApplicationRecords(p=>[record,...p.filter(x=>x.jobId!==job.id)]);setActiveTab('applications');};
 
   return <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-yellow-400 selection:text-black">
-    <Navbar activeTab={activeTab} setActiveTab={setActiveTab} userProfile={userProfile}/>
-    <main className="flex-1 w-full pb-16">
+    <Navbar activeTab={activeTab} setActiveTab={setActiveTab} userProfile={userProfile}/><main className="flex-1 w-full pb-16">
       {activeTab==='discover' && <JobDiscoveryView jobs={jobs} userProfile={userProfile} savedJobIds={savedJobIds} onToggleSaveJob={toggleSave} compareJobIds={compareJobIds} onToggleCompareJob={toggleCompare} onPrepareJob={prepare} answerLibrary={answerLibrary} onUpdateAnswerLibrary={setAnswerLibrary} onLaunchAutomation={launch} onSaveToTracker={saveTracker}/>} 
       {activeTab==='profile' && <ResumeImporter onProfile={p=>setUserProfile(prev=>({...prev,...p}))}/>} 
       {activeTab==='saved' && <div className="max-w-7xl mx-auto px-6 py-16"><h1 className="text-5xl font-black">SAVED JOBS</h1><p className="text-zinc-500 mt-3">{savedJobIds.length} saved opportunities.</p></div>}
       {activeTab==='applications' && <TrackerView applications={applicationRecords} onUpdateStatus={(id,s:ApplicationStatus)=>setApplicationRecords(p=>p.map(r=>r.id===id?{...r,status:s,lastUpdated:new Date().toISOString()}:r))} onUpdateNotes={(id,n)=>setApplicationRecords(p=>p.map(r=>r.id===id?{...r,notes:n,lastUpdated:new Date().toISOString()}:r))}/>} 
-    </main><DotFooter/>
-  </div>;
+    </main><DotFooter/></div>;
 }
