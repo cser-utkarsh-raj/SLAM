@@ -22,7 +22,6 @@ import {
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('discover');
 
-  // Career Profile State
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     const saved = localStorage.getItem('slam_user_profile');
     if (saved) {
@@ -31,7 +30,6 @@ export default function App() {
     return INITIAL_USER_PROFILE;
   });
 
-  // Jobs State
   const [jobs, setJobs] = useState<JobPosting[]>(() => {
     const saved = localStorage.getItem('slam_jobs');
     if (saved) {
@@ -40,7 +38,6 @@ export default function App() {
     return INITIAL_JOB_POSTINGS;
   });
 
-  // Saved Jobs
   const [savedJobIds, setSavedJobIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('slam_saved_job_ids');
     if (saved) {
@@ -49,7 +46,6 @@ export default function App() {
     return ['job-stripe-01'];
   });
 
-  // Compared Jobs
   const [compareJobIds, setCompareJobIds] = useState<string[]>(() => {
     const saved = localStorage.getItem('slam_compare_job_ids');
     if (saved) {
@@ -58,7 +54,6 @@ export default function App() {
     return ['job-stripe-01', 'job-linear-02'];
   });
 
-  // Answer Library
   const [answerLibrary, setAnswerLibrary] = useState<ApplicationAnswer[]>(() => {
     const saved = localStorage.getItem('slam_answer_library');
     if (saved) {
@@ -67,7 +62,6 @@ export default function App() {
     return INITIAL_ANSWER_LIBRARY;
   });
 
-  // Application Records (Tracker)
   const [applicationRecords, setApplicationRecords] = useState<ApplicationRecord[]>(() => {
     const saved = localStorage.getItem('slam_app_records');
     if (saved) {
@@ -76,15 +70,11 @@ export default function App() {
     return INITIAL_APPLICATION_RECORDS;
   });
 
-  // Selected Target Job for Preparation / Runner
   const [selectedJob, setSelectedJob] = useState<JobPosting>(jobs[0]);
-
-  // Prepared Artifacts Cache
   const [preparedTailoredResume, setPreparedTailoredResume] = useState<TailoredResume | null>(null);
   const [preparedCoverLetter, setPreparedCoverLetter] = useState<string>('');
   const [preparedAnswers, setPreparedAnswers] = useState<{ question: string; answer: string }[]>([]);
 
-  // Persistence Effects
   useEffect(() => {
     localStorage.setItem('slam_user_profile', JSON.stringify(userProfile));
   }, [userProfile]);
@@ -105,7 +95,6 @@ export default function App() {
     localStorage.setItem('slam_app_records', JSON.stringify(applicationRecords));
   }, [applicationRecords]);
 
-  // Handlers
   const handleToggleSaveJob = (jobId: string) => {
     setSavedJobIds((prev) =>
       prev.includes(jobId) ? prev.filter((id) => id !== jobId) : [...prev, jobId]
@@ -118,20 +107,8 @@ export default function App() {
     );
   };
 
-  const handleAddToCompare = (jobId: string) => {
-    if (!compareJobIds.includes(jobId) && compareJobIds.length < 4) {
-      setCompareJobIds((prev) => [...prev, jobId]);
-    }
-  };
-
-  const handleRemoveFromCompare = (jobId: string) => {
-    setCompareJobIds((prev) => prev.filter((id) => id !== jobId));
-  };
-
   const handlePrepareJob = (job: JobPosting) => {
     setSelectedJob(job);
-    // Prep is now handled in JobDiscoveryView side-panel, 
-    // but if it needs a global state, we just stay on discover.
     setActiveTab('discover');
   };
 
@@ -145,7 +122,6 @@ export default function App() {
     setPreparedTailoredResume(tailoredResume);
     setPreparedCoverLetter(coverLetter);
     setPreparedAnswers(answers);
-    // Automation is now internal or disabled. Stay on discover for now.
     setActiveTab('discover');
   };
 
@@ -157,7 +133,6 @@ export default function App() {
   ) => {
     const existingIndex = applicationRecords.findIndex((r) => r.jobId === job.id);
     const score = calculateCompatibility(userProfile, job).compatibilityScore;
-    
     const newRecord: ApplicationRecord = {
       id: `app-rec-${Date.now()}`,
       jobId: job.id,
@@ -248,14 +223,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col font-sans selection:bg-yellow-400 selection:text-black">
-      {/* Navigation Header */}
-      <Navbar
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        userProfile={userProfile}
-      />
+      <Navbar activeTab={activeTab} setActiveTab={setActiveTab} userProfile={userProfile} />
 
-      {/* Main Content Area */}
       <main className="flex-1 w-full pb-16">
         {activeTab === 'discover' && (
           <JobDiscoveryView
@@ -274,16 +243,12 @@ export default function App() {
         )}
 
         {activeTab === 'profile' && (
-          <ProfileView
-            userProfile={userProfile}
-            setUserProfile={setUserProfile}
-          />
+          <ProfileView userProfile={userProfile} setUserProfile={setUserProfile} />
         )}
 
         {activeTab === 'saved' && (
           <div className="max-w-7xl mx-auto px-4 py-12">
             <h1 className="text-4xl font-display font-black text-white mb-8">SAVED JOBS</h1>
-            {/* Minimal placeholder for saved view */}
             <p className="text-zinc-400">You have {savedJobIds.length} saved opportunities.</p>
           </div>
         )}
@@ -297,10 +262,11 @@ export default function App() {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="py-8 px-4 text-center text-xs text-zinc-600 font-mono">
-        <div className="max-w-7xl mx-auto flex flex-col items-center justify-center">
-          <span className="font-bold tracking-widest text-zinc-500">SLAM &copy; 2026</span>
+      <footer className="py-8 px-4 text-center">
+        <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-xs tracking-wide">
+          <span className="text-zinc-600">SLAM</span>
+          <span className="text-zinc-800">·</span>
+          <span className="text-zinc-500">Presented by <span className="font-semibold text-zinc-300">.dot</span></span>
         </div>
       </footer>
     </div>
