@@ -1,101 +1,106 @@
 # SLAM
 
-**Job discovery, compatibility intelligence, and application assistance.**
+**Sequential Labor Application & Matching**
 
-SLAM helps job seekers find relevant opportunities, understand how well they match, prepare tailored application materials, and track applications from one place.
+SLAM is a job-discovery and application-preparation tool focused on **real candidate data, real public job listings, explainable matching, and human-controlled application flows**.
 
-> Built as a focused utility: discover better jobs, prepare better applications, and keep the human in control when a platform requires it.
+## What works now
 
-## Core capabilities
+- PDF, DOCX and TXT resume ingestion through the Python backend
+- AI-assisted structured profile extraction using configured NVIDIA/OpenRouter providers
+- Deterministic, non-fabricating fallback extraction when AI is unavailable
+- Public job discovery through the Arbeitnow feed
+- Candidate/job compatibility analysis with an explainable fallback scorer
+- AI-assisted factual cover letters
+- Application preparation and tracking in the frontend
+- Firebase persistence foundation for verified profile data
+- `.dot` branding and SLAM SVG favicon
 
-- Resume/CV import and structured profile creation
-- Job discovery across permitted public/approved sources
-- Job normalization and duplicate detection
-- Explainable compatibility scoring
-- Opportunity comparison
-- Tailored resume generation
-- Cover-letter and application-answer assistance
-- Reusable application answer library
-- Application tracking
-- Human-in-the-loop application assistance
-- Controlled automation for explicitly supported application flows
+## Non-negotiable rules
+
+SLAM must never:
+
+- fabricate candidate information or job information
+- invent salary, applicant counts, recruiter contacts, dates or requirements
+- collect or store LinkedIn/Indeed/Glassdoor passwords
+- bypass CAPTCHA, 2FA, identity verification or access controls
+- disguise automation to evade bot detection
+- submit an application when a platform requires human authentication or intervention
+
+When a flow needs human action, SLAM stops and hands control back to the user.
 
 ## Architecture
 
 ```text
-React + TypeScript frontend
-          ↓
+React + Vite
+    │
+    ├── real profile state
+    ├── discovery UI
+    └── application tracker
+          │
+          ▼
      Python / FastAPI
-          ↓
- ┌────────┼──────────────┐
- ↓        ↓              ↓
-Search   AI services   Firestore
-          ↓
-   Gemini / NVIDIA /
-   optional providers
-          ↓
-  Background workers
-          ↓
- Supported application flows
+          │
+    ┌─────┼──────────────┐
+    ▼     ▼              ▼
+ Resume  Matching       Jobs
+ parser  engine         discovery
+    │     │              │
+    └─────┼──────────────┘
+          ▼
+    AI provider cascade
+    NVIDIA → OpenRouter
+          │
+          ▼
+       Firebase
+  profile persistence
 ```
 
-### Tech stack
+## Tech stack
 
 | Layer | Technology |
 |---|---|
 | Frontend | React, TypeScript, Vite, Tailwind CSS |
 | Backend | Python, FastAPI |
-| AI | Gemini API, NVIDIA NIM, optional OpenRouter |
-| Database | Firebase / Firestore |
-| Auth | Firebase Authentication |
-| Browser automation | Playwright for supported flows only |
+| Documents | pypdf, python-docx |
+| AI | NVIDIA NIM + OpenRouter |
+| Persistence | Firebase / Firestore REST |
+| Job discovery | Public job feeds; source URLs preserved |
 | Motion | Motion |
 | Icons | Lucide React |
-| Deployment target | Vercel + Google Cloud Run |
 
-### Repository language breakdown
+## Important implementation detail
 
-GitHub's language bar is generated automatically from the source files it detects. SLAM intentionally contains both TypeScript and Python; `.gitattributes` is included to make GitHub Linguist classify the frontend/backend cleanly and exclude non-source files from the breakdown.
+The UI is TypeScript because the browser frontend is React. The **business logic, document extraction, AI orchestration, job discovery and matching backend are Python**. There is no longer a second `python_engine` or stealth-browser implementation competing with the main backend.
 
-The exact percentages are calculated by GitHub and may change as the codebase grows.
+The repository intentionally does not ship fabricated demo candidates. A fresh installation starts with an empty profile and obtains candidate data from the user's resume or manual input.
 
-## Product principles
+## Environment
 
-- **Quality over volume:** prioritize relevant opportunities instead of indiscriminate mass applications.
-- **Explainable matching:** compatibility scores must have a visible reason behind them.
-- **No fabrication:** SLAM must never invent experience, qualifications, employers, achievements, salary data, recruiter details, applicant counts, or posting dates.
-- **Human control:** authentication challenges, CAPTCHA, 2FA, identity verification, unsupported forms, and restricted flows require the user to take over.
-- **No credential harvesting:** SLAM does not store third-party job-platform passwords.
-- **No security circumvention:** no CAPTCHA bypass, 2FA bypass, bot-detection evasion, rate-limit circumvention, or stealth automation.
-- **Graceful degradation:** discovery and preparation remain useful even when automation is unavailable.
+```env
+NVIDIA_API_KEY=...
+OPENROUTER_API_KEY=...
+NVIDIA_MODEL=meta/llama-3.1-70b-instruct
+OPENROUTER_MODEL=google/gemini-2.5-flash
+SLAM_ALLOWED_ORIGINS=http://localhost:3000
+VITE_API_URL=
+```
 
-## Development status
+Never commit live API keys or `.env` files.
 
-SLAM is under active development. The current repository contains the application prototype and its Python backend foundation; production integrations and real-world job-source coverage are being added incrementally.
-
-## Local development
-
-### Frontend
+## Run locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-### Python backend
+The Vite frontend runs on port 3000 and FastAPI runs on port 3001 in the development script.
 
-Use Python 3.12+ and create a virtual environment, then install the backend dependencies before starting FastAPI.
+## Status
 
-Keep API keys and credentials in environment variables. Never commit `.env` files or live API keys.
-
-## Security
-
-See `SECURITY.md` and `AUTOMATION_POLICY.md` for security and automation constraints.
-
-## License
-
-License to be finalized before public production release.
+SLAM is an active MVP. The current priority is reliable real-world data flow before expanding source coverage or application automation. Unsupported or authentication-gated application flows remain human-controlled.
 
 ---
 
-**SLAM**  ·  Presented by **.dot**
+**SLAM** · Presented by **.dot**
