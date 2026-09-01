@@ -2,11 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { ProfileView } from './components/ProfileView';
 import { JobDiscoveryView } from './components/JobDiscoveryView';
-import { JobComparisonView } from './components/JobComparisonView';
-import { ApplicationPrepView } from './components/ApplicationPrepView';
-import { AutomationRunnerView } from './components/AutomationRunnerView';
 import { TrackerView } from './components/TrackerView';
-import { PythonEngineExplorer } from './components/PythonEngineExplorer';
+import { calculateCompatibility } from './utils/scoring';
 import { 
   INITIAL_USER_PROFILE, 
   INITIAL_JOB_POSTINGS, 
@@ -23,7 +20,7 @@ import {
 } from './types';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('discovery');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('discover');
 
   // Career Profile State
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
@@ -87,9 +84,6 @@ export default function App() {
   const [preparedCoverLetter, setPreparedCoverLetter] = useState<string>('');
   const [preparedAnswers, setPreparedAnswers] = useState<{ question: string; answer: string }[]>([]);
 
-  // Health / AI Key state
-  const [hasAiKey, setHasAiKey] = useState<boolean>(true);
-
   // Persistence Effects
   useEffect(() => {
     localStorage.setItem('slam_user_profile', JSON.stringify(userProfile));
@@ -110,18 +104,6 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('slam_app_records', JSON.stringify(applicationRecords));
   }, [applicationRecords]);
-
-  // Check health endpoint
-  useEffect(() => {
-    fetch('/api/health')
-      .then((res) => res.json())
-      .then((data) => {
-        if (typeof data.hasAiKey === 'boolean') {
-          setHasAiKey(data.hasAiKey);
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   // Handlers
   const handleToggleSaveJob = (jobId: string) => {
@@ -148,7 +130,9 @@ export default function App() {
 
   const handlePrepareJob = (job: JobPosting) => {
     setSelectedJob(job);
-    setActiveTab('prep');
+    // Prep is now handled in JobDiscoveryView side-panel, 
+    // but if it needs a global state, we just stay on discover.
+    setActiveTab('discover');
   };
 
   const handleLaunchAutomation = (
@@ -161,7 +145,8 @@ export default function App() {
     setPreparedTailoredResume(tailoredResume);
     setPreparedCoverLetter(coverLetter);
     setPreparedAnswers(answers);
-    setActiveTab('automation');
+    // Automation is now internal or disabled. Stay on discover for now.
+    setActiveTab('discover');
   };
 
   const handleSaveToTracker = (
@@ -171,6 +156,8 @@ export default function App() {
     answers: { question: string; answer: string }[]
   ) => {
     const existingIndex = applicationRecords.findIndex((r) => r.jobId === job.id);
+    const score = calculateCompatibility(userProfile, job).compatibilityScore;
+    
     const newRecord: ApplicationRecord = {
       id: `app-rec-${Date.now()}`,
       jobId: job.id,
@@ -181,7 +168,7 @@ export default function App() {
       dateDiscovered: job.postingDate,
       dateApplied: undefined,
       status: 'PREPARED',
-      compatibilityScore: 92,
+      compatibilityScore: score,
       applicationMode: 'REVIEW',
       tailoredResume: tailoredResume || undefined,
       coverLetter: coverLetter || undefined,
@@ -202,12 +189,13 @@ export default function App() {
       setApplicationRecords((prev) => [newRecord, ...prev]);
     }
 
-    setActiveTab('tracker');
+    setActiveTab('applications');
   };
 
   const handleMarkApplied = (job: JobPosting, mode: 'REVIEW' | 'ASSISTED' | 'AUTOMATED') => {
     const existingIndex = applicationRecords.findIndex((r) => r.jobId === job.id);
     const today = new Date().toISOString().split('T')[0];
+    const score = calculateCompatibility(userProfile, job).compatibilityScore;
 
     if (existingIndex >= 0) {
       setApplicationRecords((prev) => {
@@ -232,7 +220,7 @@ export default function App() {
         dateDiscovered: job.postingDate,
         dateApplied: today,
         status: 'APPLIED',
-        compatibilityScore: 94,
+        compatibilityScore: score,
         applicationMode: mode,
         tailoredResume: preparedTailoredResume || undefined,
         coverLetter: preparedCoverLetter || undefined,
@@ -265,15 +253,11 @@ export default function App() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         userProfile={userProfile}
-        savedJobsCount={savedJobIds.length}
-        compareJobsCount={compareJobIds.length}
-        activeApplicationsCount={applicationRecords.length}
-        hasAiKey={hasAiKey}
       />
 
       {/* Main Content Area */}
       <main className="flex-1 w-full pb-16">
-        {activeTab === 'discovery' && (
+        {activeTab === 'discover' && (
           <JobDiscoveryView
             jobs={jobs}
             userProfile={userProfile}
@@ -282,6 +266,10 @@ export default function App() {
             compareJobIds={compareJobIds}
             onToggleCompareJob={handleToggleCompareJob}
             onPrepareJob={handlePrepareJob}
+            answerLibrary={answerLibrary}
+            onUpdateAnswerLibrary={setAnswerLibrary}
+            onLaunchAutomation={handleLaunchAutomation}
+            onSaveToTracker={handleSaveToTracker}
           />
         )}
 
@@ -292,70 +280,27 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'compare' && (
-          <JobComparisonView
-            allJobs={jobs}
-            compareJobIds={compareJobIds}
-            userProfile={userProfile}
-            onRemoveFromCompare={handleRemoveFromCompare}
-            onAddToCompare={handleAddToCompare}
-            onPrepareJob={handlePrepareJob}
-          />
+        {activeTab === 'saved' && (
+          <div className="max-w-7xl mx-auto px-4 py-12">
+            <h1 className="text-4xl font-display font-black text-white mb-8">SAVED JOBS</h1>
+            {/* Minimal placeholder for saved view */}
+            <p className="text-zinc-400">You have {savedJobIds.length} saved opportunities.</p>
+          </div>
         )}
 
-        {activeTab === 'prep' && (
-          <ApplicationPrepView
-            selectedJob={selectedJob}
-            allJobs={jobs}
-            onSelectJob={setSelectedJob}
-            userProfile={userProfile}
-            answerLibrary={answerLibrary}
-            onUpdateAnswerLibrary={setAnswerLibrary}
-            onLaunchAutomation={handleLaunchAutomation}
-            onSaveToTracker={handleSaveToTracker}
-          />
-        )}
-
-        {activeTab === 'automation' && (
-          <AutomationRunnerView
-            selectedJob={selectedJob}
-            allJobs={jobs}
-            onSelectJob={setSelectedJob}
-            userProfile={userProfile}
-            tailoredResume={preparedTailoredResume}
-            coverLetter={preparedCoverLetter}
-            answers={preparedAnswers}
-            onMarkApplied={handleMarkApplied}
-          />
-        )}
-
-        {activeTab === 'tracker' && (
+        {activeTab === 'applications' && (
           <TrackerView
             applications={applicationRecords}
             onUpdateStatus={handleUpdateRecordStatus}
             onUpdateNotes={handleUpdateRecordNotes}
           />
         )}
-
-        {activeTab === 'python' && (
-          <PythonEngineExplorer
-            userProfile={userProfile}
-            selectedJob={selectedJob}
-          />
-        )}
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-900 bg-zinc-950/80 py-6 px-4 text-center text-xs text-zinc-500 font-mono">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="font-bold text-zinc-300">SLAM</span>
-            <span>•</span>
-            <span>Precision Career Match &amp; Assisted Application Platform</span>
-          </div>
-          <div>
-            <span>Human-in-the-Loop Safe Architecture • Zero-Fabrication Policy</span>
-          </div>
+      <footer className="py-8 px-4 text-center text-xs text-zinc-600 font-mono">
+        <div className="max-w-7xl mx-auto flex flex-col items-center justify-center">
+          <span className="font-bold tracking-widest text-zinc-500">SLAM &copy; 2026</span>
         </div>
       </footer>
     </div>
