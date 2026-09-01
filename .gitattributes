@@ -1,0 +1,11 @@
+# Keep generated/build output out of GitHub's language statistics
+dist/** linguist-generated=true
+build/** linguist-generated=true
+coverage/** linguist-generated=true
+node_modules/** linguist-vendored=true
+*.lock linguist-generated=true
+
+# Explicitly classify the two application layers
+*.py linguist-language=Python
+*.ts linguist-language=TypeScript
+*.tsx linguist-language=TypeScript
