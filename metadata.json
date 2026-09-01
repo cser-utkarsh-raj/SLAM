@@ -1,0 +1,6 @@
+{
+  "name": "SLAM - Job Discovery & Application Platform",
+  "description": "Production-ready job discovery, explainable compatibility analysis, factual resume tailoring, application preparation, and assisted application tracking platform.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
