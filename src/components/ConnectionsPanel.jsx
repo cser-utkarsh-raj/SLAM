@@ -23,24 +23,55 @@ function readProfile() {
   }
 }
 
+function buildIntelligentProfileQuery(p) {
+  if (!p) return '';
+  const role = p.targetRoles?.[0] || p.currentRole || '';
+  const roleLower = role.toLowerCase();
+  
+  const allSkills = [
+    ...(Array.isArray(p.skills) ? p.skills : []),
+    ...(Array.isArray(p.technologies) ? p.technologies : [])
+  ].filter(Boolean);
+
+  const uniqueSkills = Array.from(new Set(allSkills))
+    .filter((s) => s && !roleLower.includes(s.toLowerCase()))
+    .slice(0, 4);
+
+  const parts = [];
+  if (role) parts.push(role);
+  if (uniqueSkills.length > 0) parts.push(...uniqueSkills);
+
+  return parts.join(' + ').slice(0, 120);
+}
+
 export function ConnectionsPanel() {
   const [connections, setConnections] = useState([]);
   const [liveJobs, setLiveJobs] = useState([]);
   const [profile, setProfile] = useState(null);
+  const [activeQuery, setActiveQuery] = useState('');
   const [loadingJobs, setLoadingJobs] = useState(false);
   const [jobError, setJobError] = useState('');
 
   const loadLiveMatches = async (currentProfile = profile) => {
-    if (!currentProfile || (!currentProfile.targetRoles?.length && !currentProfile.skills?.length)) {
+    if (!currentProfile || (!currentProfile.targetRoles?.length && !currentProfile.currentRole && !currentProfile.skills?.length && !currentProfile.technologies?.length)) {
       setJobError('Build your career profile first so SLAM can search using your real skills and target roles.');
       setLiveJobs([]);
+      setActiveQuery('');
       return;
     }
 
+    const query = buildIntelligentProfileQuery(currentProfile);
+    if (!query.trim()) {
+      setJobError('Please add a target role or skills to your career profile to discover matching jobs.');
+      setLiveJobs([]);
+      setActiveQuery('');
+      return;
+    }
+
+    setActiveQuery(query);
     setLoadingJobs(true);
     setJobError('');
     try {
-      const query = currentProfile.targetRoles?.[0] || currentProfile.currentRole || currentProfile.skills?.slice(0, 3).join(' ') || 'software engineer';
       const response = await fetch(`${API}/api/jobs/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -48,7 +79,7 @@ export function ConnectionsPanel() {
           query,
           location: currentProfile.location || '',
           country: currentProfile.country || '',
-          remote: currentProfile.relocationPreference === 'Remote Only',
+          remote: currentProfile.relocationPreference === 'Remote Only' || currentProfile.relocationPreference === 'Remote',
           limit: 6,
           profile: currentProfile,
         }),
@@ -97,7 +128,7 @@ export function ConnectionsPanel() {
             <h3 className="text-xl sm:text-2xl font-display font-black text-white mt-1">Real jobs matched to your profile.</h3>
             <p className="text-[11px] text-zinc-500 font-mono mt-1">
               {profile?.country ? `Market: ${profile.country}` : 'Market: profile country required'}
-              {profile?.targetRoles?.length ? ` · Role: ${profile.targetRoles[0]}` : ''}
+              {activeQuery ? ` · Query: ${activeQuery}` : ''}
             </p>
           </div>
           <button

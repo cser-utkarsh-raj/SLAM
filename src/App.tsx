@@ -17,9 +17,16 @@ const API = import.meta.env.VITE_API_URL || '';
 function readLocal<T>(key:string, fallback:T):T { try { const v=localStorage.getItem(key); return v ? JSON.parse(v) as T : fallback; } catch { return fallback; } }
 function hasProfile(profile:UserProfile) { return Boolean(profile.name && profile.country && (profile.skills.length || profile.targetRoles.length)); }
 function profileSearchQuery(profile:UserProfile) {
-  const role = profile.targetRoles?.[0] || profile.currentRole || 'software engineer';
-  const skills = [...(profile.skills || []), ...(profile.technologies || [])].filter(Boolean).slice(0, 5);
-  return [role, ...skills].join(' ').slice(0, 120);
+  const role = profile.targetRoles?.[0] || profile.currentRole || '';
+  const roleLower = role.toLowerCase();
+  const allSkills = [...(profile.skills || []), ...(profile.technologies || [])].filter(Boolean);
+  const uniqueSkills = Array.from(new Set(allSkills))
+    .filter(s => s && !roleLower.includes(s.toLowerCase()))
+    .slice(0, 4);
+  const parts = [];
+  if (role) parts.push(role);
+  if (uniqueSkills.length > 0) parts.push(...uniqueSkills);
+  return parts.join(' + ').slice(0, 120);
 }
 
 export default function App() {

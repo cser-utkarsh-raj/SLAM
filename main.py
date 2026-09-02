@@ -152,7 +152,7 @@ async def parse_resume(request: Request, file: UploadFile | None = File(default=
     return {"profile":sanitize_profile(profile,text) if profile else deterministic_profile(text),"engine":engine or "deterministic-extraction","sourceTextLength":len(text)}
 
 class JobSearchRequest(BaseModel):
-    query: str = Field(default="software engineer", min_length=2, max_length=120); location: str=""; country: str=""; remote: bool=False; limit: int=Field(default=30, ge=1, le=50); profile: dict[str,Any]=Field(default_factory=dict)
+    query: str = Field(default="", min_length=0, max_length=120); location: str=""; country: str=""; remote: bool=False; limit: int=Field(default=30, ge=1, le=50); profile: dict[str,Any]=Field(default_factory=dict)
 
 @app.post("/api/jobs/search")
 async def search_jobs(req: JobSearchRequest):

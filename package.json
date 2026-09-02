@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently \"python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload\" \"vite --host 0.0.0.0\"",
+    "dev": "concurrently \"python3 -m uvicorn main:app --host 127.0.0.1 --port 8001 --reload\" \"vite --host 0.0.0.0\"",
     "build": "vite build",
-    "start": "python -m uvicorn main:app --host 0.0.0.0 --port 8000",
+    "start": "python3 -m uvicorn main:app --host 127.0.0.1 --port 8001",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "tsc --noEmit"
   },
