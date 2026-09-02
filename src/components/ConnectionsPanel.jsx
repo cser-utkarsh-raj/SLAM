@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Lock, Crown, ExternalLink, Radio, CircleSlash2, RefreshCw, Search, MapPin, CheckCircle2 } from 'lucide-react';
 import { LinkedInLogo, IndeedLogo, GlassdoorLogo, WellfoundLogo, WorkIndiaLogo, InstahyreLogo, ArbeitnowLogo, SOURCE_URLS } from './SourceLogos';
 
@@ -64,8 +64,15 @@ export function ConnectionsPanel() {
       const response = await fetch(`${API}/api/jobs/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: { query, location: currentProfile.location || '', country: currentProfile.country || '', remote: currentProfile.relocationPreference === 'Remote Only' || currentProfile.relocationPreference === 'Remote', limit: 6, profile: currentProfile },
-      } instanceof Request ? undefined : JSON.stringify({ query, location: currentProfile.location || '', country: currentProfile.country || '', remote: currentProfile.relocationPreference === 'Remote Only' || currentProfile.relocationPreference === 'Remote', limit: 6, profile: currentProfile }));
+        body: JSON.stringify({
+          query,
+          location: currentProfile.location || '',
+          country: currentProfile.country || '',
+          remote: currentProfile.relocationPreference === 'Remote Only' || currentProfile.relocationPreference === 'Remote',
+          limit: 6,
+          profile: currentProfile,
+        }),
+      });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.detail || data.error || `Live discovery failed (${response.status}).`);
       setLiveJobs(Array.isArray(data.jobs) ? data.jobs : []);
@@ -84,8 +91,6 @@ export function ConnectionsPanel() {
     fetch(`${API}/api/connections`).then((r) => r.ok ? r.json() : Promise.reject(new Error('source status failed'))).then((d) => setConnections(d.connections || [])).catch(() => setConnections([]));
     void loadLiveMatches(currentProfile);
   }, []);
-
-  const liveConnection = useMemo(() => connections.find((c) => c.provider === 'arbeitnow'), [connections]);
 
   return (
     <div className="max-w-7xl mx-auto px-6">
