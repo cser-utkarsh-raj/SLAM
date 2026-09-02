@@ -48,7 +48,7 @@ export function ConnectionsPanel() {
     <div className="mt-8 grid md:grid-cols-3 gap-3">
       <div className="border border-zinc-900 p-5"><ShieldCheck className="w-5 h-5 text-yellow-400"/><div className="font-bold text-white mt-4">No passwords</div><p className="text-xs text-zinc-500 mt-1">Use official authorization. Credentials stay with the platform.</p></div>
       <div className="border border-zinc-900 p-5"><LockKeyhole className="w-5 h-5 text-yellow-400"/><div className="font-bold text-white mt-4">Human checkpoints</div><p className="text-xs text-zinc-500 mt-1">2FA, CAPTCHA and unexpected authentication stay with you.</p></div>
-      <div className="border border-yellow-400/30 bg-yellow-400/[0.03] p-5"><Crown className="w-5 h-5 text-yellow-400"/><div className="font-bold text-white mt-4">SLAM+ · ₹49/month</div><p className="text-xs text-zinc-500 mt-1">Background job monitoring and application preparation for supported workflows.</p></div>
+      <div className="border border-yellow-400/30 bg-yellow-400/[0.03] p-5"><Crown className="w-5 h-5 text-yellow-400"/><div className="font-bold text-white mt-4">SLAM+ ₹49/month</div><p className="text-xs text-zinc-500 mt-1">Background job monitoring and application preparation for supported workflows.</p></div>
     </div>
     {message && <div className="mt-6 border border-zinc-800 bg-zinc-950 p-4 text-sm text-zinc-300">{message}</div>}
     {capabilities && <div className="mt-4 text-[11px] text-zinc-600">Background submission remains subject to platform authorization and supported integrations.</div>}
