@@ -1,10 +1,27 @@
 @import "tailwindcss";
 
 @layer base {
+  html {
+    background: #050505;
+    color-scheme: dark;
+  }
+
   body {
+    margin: 0;
+    min-width: 320px;
+    min-height: 100vh;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     font-weight: 500;
     letter-spacing: -0.01em;
+    background: #050505;
+  }
+
+  button, a, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  button, a {
+    touch-action: manipulation;
   }
 
   code, pre, .font-mono {
@@ -28,12 +45,93 @@
   scrollbar-width: none;
 }
 
-@keyframes marquee {
-  0% {
-    transform: translateX(0%);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
+/* Full-page ambient motion: soft light, not a grid, dot field or particle system. */
+.slam-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  isolation: isolate;
 }
 
+.slam-ambient__orb,
+.slam-ambient__wash {
+  position: absolute;
+  pointer-events: none;
+}
+
+.slam-ambient__orb {
+  width: 42vw;
+  height: 20vw;
+  min-width: 320px;
+  min-height: 180px;
+  border-radius: 999px;
+  filter: blur(70px);
+  opacity: 0.11;
+  will-change: transform;
+}
+
+.slam-ambient__orb--one {
+  top: -8vh;
+  left: -8vw;
+  background: linear-gradient(110deg, rgba(250, 204, 21, 0.55), rgba(255, 255, 255, 0.04));
+  transform: rotate(-14deg);
+  animation: slam-drift-one 18s ease-in-out infinite alternate;
+}
+
+.slam-ambient__orb--two {
+  top: 35vh;
+  right: -12vw;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.08), rgba(250, 204, 21, 0.38));
+  transform: rotate(18deg);
+  animation: slam-drift-two 23s ease-in-out infinite alternate;
+}
+
+.slam-ambient__orb--three {
+  bottom: -12vh;
+  left: 30vw;
+  width: 34vw;
+  height: 15vw;
+  background: linear-gradient(100deg, rgba(250, 204, 21, 0.28), rgba(255, 255, 255, 0.02));
+  transform: rotate(-8deg);
+  animation: slam-drift-three 20s ease-in-out infinite alternate;
+}
+
+.slam-ambient__wash {
+  inset: -20%;
+  background: radial-gradient(ellipse at 50% 0%, rgba(250, 204, 21, 0.045), transparent 42%);
+  animation: slam-breathe 12s ease-in-out infinite alternate;
+}
+
+@keyframes slam-drift-one {
+  0% { transform: translate3d(-2%, -1%, 0) rotate(-14deg) scale(1); }
+  100% { transform: translate3d(13%, 8%, 0) rotate(-5deg) scale(1.08); }
+}
+
+@keyframes slam-drift-two {
+  0% { transform: translate3d(3%, 4%, 0) rotate(18deg) scale(1); }
+  100% { transform: translate3d(-12%, -7%, 0) rotate(8deg) scale(1.12); }
+}
+
+@keyframes slam-drift-three {
+  0% { transform: translate3d(-5%, 2%, 0) rotate(-8deg) scale(1); }
+  100% { transform: translate3d(9%, -8%, 0) rotate(2deg) scale(1.1); }
+}
+
+@keyframes slam-breathe {
+  0% { opacity: 0.55; transform: scale(0.98); }
+  100% { opacity: 1; transform: scale(1.03); }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .slam-ambient__orb,
+  .slam-ambient__wash {
+    animation: none;
+  }
+}
