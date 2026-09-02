@@ -2,59 +2,82 @@
 
 **Sequential Labor Application & Matching**
 
-SLAM is a job-discovery and application-preparation tool focused on **real candidate data, real public job listings, explainable matching, and human-controlled application flows**.
+SLAM is a job-discovery and application-preparation platform built around **real candidate data, real public listings, explainable matching and human-controlled application flows**.
 
-## What works now
+## Current product flow
 
-- PDF, DOCX and TXT resume ingestion through the Python backend
-- AI-assisted structured profile extraction using configured NVIDIA/OpenRouter providers
-- Deterministic, non-fabricating fallback extraction when AI is unavailable
-- Public job discovery through the Arbeitnow feed
-- Candidate/job compatibility analysis with an explainable fallback scorer
-- AI-assisted factual cover letters
-- Application preparation and tracking in the frontend
-- Firebase persistence foundation for verified profile data
-- `.dot` branding and SLAM SVG favicon
+```text
+Landing
+  ↓
+Account
+  ↓
+Resume / Profile intake
+  ↓
+Profile verification
+  ↓
+Country + role preferences
+  ↓
+Real job discovery
+  ↓
+Compatibility analysis
+  ↓
+Application preparation
+  ↓
+Application tracker
+```
 
-## Non-negotiable rules
+## What is implemented
+
+- PDF, DOCX and TXT resume ingestion through FastAPI
+- AI profile extraction using NVIDIA NIM with OpenRouter fallback
+- Non-fabricating deterministic resume fallback
+- Country-aware public job discovery through Arbeitnow
+- Explainable candidate/job compatibility scoring
+- Factual AI cover-letter generation
+- Firebase authentication and profile/application persistence
+- Landing page and onboarding flow
+- SLAM+ Razorpay subscription checkout + server-side signature verification endpoints
+- Platform connection states that never request third-party passwords
+- `.dot` footer and SLAM SVG favicon
+
+## Data-integrity rules
 
 SLAM must never:
 
-- fabricate candidate information or job information
+- fabricate candidate or job information
 - invent salary, applicant counts, recruiter contacts, dates or requirements
-- collect or store LinkedIn/Indeed/Glassdoor passwords
+- create placeholder/fake jobs when live discovery fails
+- collect or store LinkedIn, Indeed or Glassdoor passwords
 - bypass CAPTCHA, 2FA, identity verification or access controls
 - disguise automation to evade bot detection
+- claim a payment or subscription is active before server-side verification
 - submit an application when a platform requires human authentication or intervention
 
-When a flow needs human action, SLAM stops and hands control back to the user.
+When a source or flow is unsupported, SLAM says so instead of pretending it works.
 
 ## Architecture
 
 ```text
 React + Vite
     │
-    ├── real profile state
-    ├── discovery UI
-    └── application tracker
+    │ /api proxy in development
+    ▼
+Python / FastAPI
+    │
+    ├── Resume extraction
+    ├── AI orchestration
+    ├── Job discovery
+    ├── Match engine
+    ├── Application preparation
+    └── Razorpay verification
           │
-          ▼
-     Python / FastAPI
-          │
-    ┌─────┼──────────────┐
-    ▼     ▼              ▼
- Resume  Matching       Jobs
- parser  engine         discovery
-    │     │              │
-    └─────┼──────────────┘
-          ▼
-    AI provider cascade
-    NVIDIA → OpenRouter
-          │
-          ▼
-       Firebase
-  profile persistence
+          ├── NVIDIA NIM
+          ├── OpenRouter
+          ├── Arbeitnow
+          └── Firebase / Razorpay
 ```
+
+There is intentionally **one backend source of truth**. The obsolete TypeScript Express backend has been removed.
 
 ## Tech stack
 
@@ -65,15 +88,10 @@ React + Vite
 | Documents | pypdf, python-docx |
 | AI | NVIDIA NIM + OpenRouter |
 | Persistence | Firebase / Firestore REST |
-| Job discovery | Public job feeds; source URLs preserved |
+| Jobs | Public job feeds with source URLs preserved |
+| Payments | Razorpay Subscriptions |
 | Motion | Motion |
 | Icons | Lucide React |
-
-## Important implementation detail
-
-The UI is TypeScript because the browser frontend is React. The **business logic, document extraction, AI orchestration, job discovery and matching backend are Python**. There is no longer a second `python_engine` or stealth-browser implementation competing with the main backend.
-
-The repository intentionally does not ship fabricated demo candidates. A fresh installation starts with an empty profile and obtains candidate data from the user's resume or manual input.
 
 ## Environment
 
@@ -81,7 +99,11 @@ The repository intentionally does not ship fabricated demo candidates. A fresh i
 NVIDIA_API_KEY=...
 OPENROUTER_API_KEY=...
 NVIDIA_MODEL=meta/llama-3.1-70b-instruct
-OPENROUTER_MODEL=google/gemini-2.5-flash
+OPENROUTER_MODEL=openrouter/free
+RAZORPAY_KEY_ID=...
+RAZORPAY_KEY_SECRET=...
+RAZORPAY_PLAN_ID=...
+RAZORPAY_WEBHOOK_SECRET=...
 SLAM_ALLOWED_ORIGINS=http://localhost:3000
 VITE_API_URL=
 ```
@@ -91,15 +113,25 @@ Never commit live API keys or `.env` files.
 ## Run locally
 
 ```bash
+pip install -r requirements.txt
 npm install
 npm run dev
 ```
 
-The Vite frontend runs on port 3000 and FastAPI runs on port 3001 in the development script.
+The Vite frontend runs on **3000** and FastAPI runs on **8000**. Vite proxies `/api/*` to FastAPI during development.
+
+## Production build
+
+```bash
+npm run build
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+```
+
+FastAPI serves the built `dist/` frontend when it exists.
 
 ## Status
 
-SLAM is an active MVP. The current priority is reliable real-world data flow before expanding source coverage or application automation. Unsupported or authentication-gated application flows remain human-controlled.
+SLAM is an active MVP. The priority is **reliable real-world data flow** before expanding source coverage or application automation. Unsupported or authentication-gated flows remain human-controlled.
 
 ---
 
