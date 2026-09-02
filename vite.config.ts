@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig(() => ({
   plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(__dirname, '.') } },
+  resolve: { alias: { '@': path.resolve(__dirname, '.'), 'framer-motion': path.resolve(__dirname, 'src/framer-motion.ts') } },
   server: {
     host: '0.0.0.0',
     port: 3000,
