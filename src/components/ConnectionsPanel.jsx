@@ -1,15 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ShieldCheck, Lock, Crown, ExternalLink, Radio, CircleSlash2 } from 'lucide-react';
-import {
-  LinkedInLogo,
-  IndeedLogo,
-  GlassdoorLogo,
-  WellfoundLogo,
-  WorkIndiaLogo,
-  InstahyreLogo,
-  ArbeitnowLogo,
-  SOURCE_URLS,
-} from './SourceLogos';
+import { LinkedInLogo, IndeedLogo, GlassdoorLogo, WellfoundLogo, WorkIndiaLogo, InstahyreLogo, ArbeitnowLogo, SOURCE_URLS } from './SourceLogos';
 
 const API = import.meta.env.VITE_API_URL || '';
 
@@ -40,35 +31,25 @@ export function ConnectionsPanel() {
           <span className="text-[11px] font-mono uppercase tracking-[0.25em] text-yellow-400 font-bold">SOURCE DIRECTORY</span>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-display font-black text-white mt-2 tracking-tight">REAL SOURCES. NO PRETEND INTEGRATIONS.</h2>
         </div>
-        <p className="text-zinc-400 max-w-md text-xs sm:text-sm leading-relaxed">
-          Every logo and destination below points to the real platform. SLAM only labels a source as live when a verified connector is actually configured.
-        </p>
+        <p className="text-zinc-400 max-w-md text-xs sm:text-sm leading-relaxed">Every logo and destination below points to the real platform. SLAM only labels a source as live when a verified connector is actually configured.</p>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {PLATFORMS.map(({ id, name, Logo, href, kind, desc }) => {
           const state = connections.find((c) => c.provider === id);
-          const live = kind === 'live' && (state?.status === 'live' || state?.status === 'connected');
+          const live = kind === 'live';
           return (
             <div key={id} className="border border-zinc-800 bg-[#090909] p-5 rounded-xl hover:border-zinc-700 transition">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="p-2 rounded-lg bg-zinc-900 border border-zinc-800 shrink-0"><Logo className="w-5 h-5" /></div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold text-white font-display">{name}</div>
-                    <div className="text-[10px] text-zinc-400 font-mono leading-snug mt-0.5">{desc}</div>
-                  </div>
+                  <div className="min-w-0"><div className="text-sm font-bold text-white font-display">{name}</div><div className="text-[10px] text-zinc-400 font-mono leading-snug mt-0.5">{desc}</div></div>
                 </div>
                 {live ? <Radio className="w-4 h-4 text-emerald-400 shrink-0" /> : <CircleSlash2 className="w-4 h-4 text-zinc-700 shrink-0" />}
               </div>
-
               <div className="mt-5 pt-3 border-t border-zinc-900 flex items-center justify-between gap-3">
-                <span className={`text-[10px] font-mono uppercase tracking-wider ${live ? 'text-emerald-400' : 'text-zinc-500'}`}>
-                  {live ? 'LIVE SOURCE' : 'OFFICIAL SITE'}
-                </span>
-                <a href={href} target="_blank" rel="noreferrer" className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-600 rounded-lg text-xs font-mono text-zinc-300 hover:text-white transition flex items-center gap-1.5">
-                  <span>Visit site</span><ExternalLink className="w-3 h-3 text-zinc-500" />
-                </a>
+                <span className={`text-[10px] font-mono uppercase tracking-wider ${live ? 'text-emerald-400' : 'text-zinc-500'}`}>{live ? 'LIVE SOURCE' : 'OFFICIAL SITE'}</span>
+                <a href={href} target="_blank" rel="noreferrer" className="px-3 py-1.5 border border-zinc-800 hover:border-zinc-600 rounded-lg text-xs font-mono text-zinc-300 hover:text-white transition flex items-center gap-1.5"><span>Visit site</span><ExternalLink className="w-3 h-3 text-zinc-500" /></a>
               </div>
             </div>
           );
