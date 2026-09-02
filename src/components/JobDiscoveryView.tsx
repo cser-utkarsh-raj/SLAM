@@ -337,7 +337,7 @@ export const JobDiscoveryView: React.FC<Props> = ({
                             <div className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl">
                               <div className="text-[10px] font-mono text-zinc-500 uppercase">Source ATS</div>
                               <div className="text-sm font-bold text-white mt-1 truncate">
-                                {activeSelected.sourcesList?.[0] || 'Direct ATS'}
+                                {activeSelected.sourcesList?.[0]?.sourceName || activeSelected.primarySource || 'Direct ATS'}
                               </div>
                             </div>
                           </div>
