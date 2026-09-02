@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import config from '../../firebase-applet-config.json';
+import appletConfig from '../../firebase-applet-config.json';
 import { UserProfile, ApplicationRecord } from '../types';
 
 export interface AuthUser {
@@ -12,8 +12,19 @@ export interface AuthUser {
   expiresAt?: number;
 }
 
+export function getFirebaseConfig() {
+  return {
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || appletConfig.projectId || 'slam-705a3',
+    appId: import.meta.env.VITE_FIREBASE_APP_ID || appletConfig.appId || '1:971102605314:web:1fd8407a412211e725971b',
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY || appletConfig.apiKey,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || appletConfig.authDomain || 'slam-705a3.firebaseapp.com',
+    firestoreDatabaseId: import.meta.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID || appletConfig.firestoreDatabaseId || '(default)',
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || appletConfig.storageBucket || 'slam-705a3.firebasestorage.app',
+    messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || appletConfig.messagingSenderId || '971102605314',
+  };
+}
+
 const AUTH_STORAGE_KEY = 'slam_auth_session';
-const TOKEN_REFRESH_URL = `https://securetoken.googleapis.com/v1/token?key=${config.apiKey}`;
 
 export class AuthService {
   private static currentUser: AuthUser | null = null;
@@ -69,7 +80,9 @@ export class AuthService {
     if (!this.refreshPromise) {
       this.refreshPromise = (async () => {
         try {
-          const response = await fetch(TOKEN_REFRESH_URL, {
+          const cfg = getFirebaseConfig();
+          const refreshUrl = `https://securetoken.googleapis.com/v1/token?key=${cfg.apiKey}`;
+          const response = await fetch(refreshUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: new URLSearchParams({
@@ -108,7 +121,8 @@ export class AuthService {
 
   public static async signInWithGoogle(): Promise<AuthUser> {
     try {
-      const app = !getApps().length ? initializeApp(config) : getApp();
+      const cfg = getFirebaseConfig();
+      const app = !getApps().length ? initializeApp(cfg) : getApp();
       const auth = getAuth(app);
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
@@ -140,7 +154,8 @@ export class AuthService {
   }
 
   public static async signUp(email: string, pass: string, name?: string): Promise<AuthUser> {
-    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${config.apiKey}`;
+    const cfg = getFirebaseConfig();
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${cfg.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -163,7 +178,8 @@ export class AuthService {
   }
 
   public static async signIn(email: string, pass: string): Promise<AuthUser> {
-    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${config.apiKey}`;
+    const cfg = getFirebaseConfig();
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${cfg.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -186,7 +202,8 @@ export class AuthService {
   }
 
   public static async anonymousSignIn(): Promise<AuthUser> {
-    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${config.apiKey}`;
+    const cfg = getFirebaseConfig();
+    const url = `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${cfg.apiKey}`;
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -252,10 +269,14 @@ function fromFirestoreFields(fields: Record<string, any>): any {
   return result;
 }
 
-const getDbBaseUrl = () => `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/${config.firestoreDatabaseId}/documents`;
+const getDbBaseUrl = () => {
+  const cfg = getFirebaseConfig();
+  return `https://firestore.googleapis.com/v1/projects/${cfg.projectId}/databases/${cfg.firestoreDatabaseId}/documents`;
+};
 
 async function firestoreRequest(uid: string, token: string, path: string, init: RequestInit = {}, retry = true): Promise<Response> {
-  const url = `${getDbBaseUrl()}/users/${uid}/userData/${path}?key=${config.apiKey}`;
+  const cfg = getFirebaseConfig();
+  const url = `${getDbBaseUrl()}/users/${uid}/userData/${path}?key=${cfg.apiKey}`;
   const response = await fetch(url, {
     ...init,
     headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` },
