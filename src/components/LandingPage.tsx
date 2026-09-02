@@ -43,12 +43,9 @@ export const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn }) => {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[850px] h-[360px] pointer-events-none opacity-40 blur-[120px]" style={{ background: 'radial-gradient(ellipse at center, rgba(250,204,21,.08) 0%, transparent 70%)' }} />
         <div className="max-w-7xl mx-auto px-6 grid lg:grid-cols-12 gap-12 lg:gap-16 items-center relative">
           <motion.div variants={fade} initial="hidden" animate="visible" custom={0.1} className="lg:col-span-7">
-            <div className="flex items-center select-none h-[92px] sm:h-[108px] md:h-[122px]">
-              <svg className="h-[88px] sm:h-[104px] md:h-[118px] w-[116px] sm:w-[136px] md:w-[150px] shrink-0" viewBox="0 0 128 128" fill="none" aria-label="SLAM">
-                <path d="M91 28H43C32.507 28 24 36.507 24 47s8.507 19 19 19h42c10.493 0 19 8.507 19 19s-8.507 19-19 19H37" stroke="#FACC15" strokeWidth="13" strokeLinecap="round" />
-                <circle cx="96" cy="29" r="5" fill="#F4F4F5" />
-              </svg>
-              <span className="font-display font-black text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] tracking-[-0.07em] leading-none text-white -ml-1 sm:-ml-2">LAM</span>
+            <div className="flex items-center gap-0 select-none h-[92px] sm:h-[108px] md:h-[122px]">
+              <img src="/slam-logo.svg" alt="SLAM" className="h-[88px] sm:h-[104px] md:h-[118px] w-[88px] sm:w-[104px] md:w-[118px] shrink-0 -mr-2 sm:-mr-3 md:-mr-4" />
+              <h1 className="font-display font-black text-6xl sm:text-7xl md:text-8xl lg:text-[7.5rem] tracking-[-0.07em] leading-none">LAM</h1>
             </div>
             <p className="mt-8 max-w-xl text-lg sm:text-xl text-zinc-300 font-light leading-relaxed">One authoritative career profile. Real listings. Explainable compatibility scoring.</p>
             <p className="mt-2 max-w-xl text-sm text-zinc-500 leading-relaxed">SLAM only displays data it can trace to a real source or your verified profile. Missing facts stay missing.</p>
