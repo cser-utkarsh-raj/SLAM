@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently \"python3 -m uvicorn main:app --host 127.0.0.1 --port 8001 --reload\" \"vite --host 0.0.0.0\"",
-    "build": "vite build",
+    "build": "npm run lint && vite build",
     "start": "python3 -m uvicorn main:app --host 127.0.0.1 --port 8001",
     "preview": "vite preview --host 0.0.0.0",
     "lint": "tsc --noEmit"
