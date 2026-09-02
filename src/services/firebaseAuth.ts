@@ -1,3 +1,5 @@
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import config from '../../firebase-applet-config.json';
 import { UserProfile, ApplicationRecord, ApplicationAnswer } from '../types';
 
@@ -45,6 +47,37 @@ export class AuthService {
 
   private static notify() {
     this.listeners.forEach((l) => l(this.currentUser));
+  }
+
+  public static async signInWithGoogle(): Promise<AuthUser> {
+    try {
+      const app = !getApps().length ? initializeApp(config) : getApp();
+      const auth = getAuth(app);
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      const cred = await signInWithPopup(auth, provider);
+      const token = await cred.user.getIdToken();
+      const user: AuthUser = {
+        uid: cred.user.uid,
+        email: cred.user.email || '',
+        displayName: cred.user.displayName || cred.user.email?.split('@')[0] || 'User',
+        idToken: token,
+        refreshToken: cred.user.refreshToken,
+      };
+
+      this.currentUser = user;
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+      this.notify();
+      return user;
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-closed-by-user' || err?.message?.includes('closed-by-user')) {
+        throw new Error('Google sign-in was cancelled.');
+      }
+      if (err?.code === 'auth/popup-blocked') {
+        throw new Error('Sign-in popup was blocked by your browser. Please allow popups.');
+      }
+      throw new Error(err?.message || 'Google sign-in failed.');
+    }
   }
 
   public static async signUp(email: string, pass: string, name?: string): Promise<AuthUser> {

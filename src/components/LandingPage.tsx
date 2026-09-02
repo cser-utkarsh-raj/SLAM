@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 import { ArrowRight, FileText, Search, Sparkles, ShieldCheck, Linkedin, BriefcaseBusiness, Globe2 } from 'lucide-react';
 import { ConnectionsPanel } from './ConnectionsPanel';
 

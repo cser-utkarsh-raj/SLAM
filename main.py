@@ -44,12 +44,34 @@ def infer_requirements(description: str):
         if m: years = max(years, int(m.group(1)))
     return required, years
 
+def get_secret(keys: list[str], default: str = "") -> str:
+    for k in keys:
+        v = os.getenv(k, "").strip()
+        if v: return v
+    return default
+
 def ai_clients():
     clients = []
-    if os.getenv("NVIDIA_API_KEY"):
-        clients.append(("nvidia", OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=os.environ["NVIDIA_API_KEY"]), os.getenv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct")))
-    if os.getenv("OPENROUTER_API_KEY"):
-        clients.append(("openrouter", OpenAI(base_url="https://openrouter.ai/api/v1", api_key=os.environ["OPENROUTER_API_KEY"]), os.getenv("OPENROUTER_MODEL", "openrouter/free")))
+    
+    # 1. Primary: NVIDIA NIM
+    nvidia_key = get_secret(["NVIDIA_API_KEY", "NVIDIA_API_K"])
+    if nvidia_key:
+        nvidia_model = get_secret(["NVIDIA_MODEL"], "meta/llama-3.1-70b-instruct")
+        # If API key was accidentally pasted into the model field, fallback to standard model
+        if nvidia_model.startswith("nvapi-") or "/" not in nvidia_model:
+            nvidia_model = "meta/llama-3.1-70b-instruct"
+        clients.append(("nvidia", OpenAI(base_url="https://integrate.api.nvidia.com/v1", api_key=nvidia_key), nvidia_model))
+
+    # 2. Fallback: OpenRouter
+    openrouter_key = get_secret(["OPENROUTER_API_KEY", "OPENROUTER_API_K", "OPENROUTER_MODE"])
+    # If the secret in OPENROUTER_MODE was an API key (starts with sk-or-), use it
+    if openrouter_key:
+        openrouter_model = get_secret(["OPENROUTER_MODEL"], "openrouter/free")
+        # If API key was accidentally pasted into the model field, fallback to default model
+        if openrouter_model.startswith("sk-or-"):
+            openrouter_model = "openrouter/free"
+        clients.append(("openrouter", OpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_key), openrouter_model))
+
     return clients
 
 def parse_json_object(text: str):
@@ -195,23 +217,24 @@ def connection_start(request:dict):
 def automation_capabilities(): return {"free":{"jobMonitoring":True,"applicationPreparation":True,"humanReview":True},"plus":{"priceINR":49,"backgroundMonitoring":True,"automaticThirdPartySubmission":False,"humanCheckpoints":True}}
 
 async def razorpay_request(path:str, method:str="GET", payload:dict|None=None):
-    key,secret=os.getenv("RAZORPAY_KEY_ID"),os.getenv("RAZORPAY_KEY_SECRET")
+    key = get_secret(["RAZORPAY_KEY_ID"])
+    secret = get_secret(["RAZORPAY_KEY_SECRET", "RAZORPAY_KEY_SECI"])
     if not key or not secret: raise HTTPException(503,"Razorpay is not configured. Add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET on the server.")
     async with httpx.AsyncClient(timeout=15) as client:
         r=await client.request(method,f"https://api.razorpay.com/v1{path}",auth=(key,secret),json=payload); r.raise_for_status(); return r.json()
 
 @app.post("/api/billing/subscription")
 async def create_subscription():
-    plan_id=os.getenv("RAZORPAY_PLAN_ID")
+    plan_id=get_secret(["RAZORPAY_PLAN_ID"])
     if not plan_id:
         plan=(await razorpay_request("/plans","POST",{"period":"monthly","interval":1,"item":{"name":"SLAM+","description":"SLAM+ monthly membership","amount":4900,"currency":"INR"}})); plan_id=plan["id"]
     sub=await razorpay_request("/subscriptions","POST",{"plan_id":plan_id,"total_count":120,"quantity":1,"customer_notify":True})
-    return {"subscriptionId":sub["id"],"keyId":os.getenv("RAZORPAY_KEY_ID"),"amount":4900,"currency":"INR"}
+    return {"subscriptionId":sub["id"],"keyId":get_secret(["RAZORPAY_KEY_ID"]),"amount":4900,"currency":"INR"}
 
 class PaymentVerification(BaseModel): razorpay_payment_id:str; razorpay_subscription_id:str; razorpay_signature:str
 @app.post("/api/billing/verify")
 def verify_payment(req:PaymentVerification):
-    secret=os.getenv("RAZORPAY_KEY_SECRET")
+    secret=get_secret(["RAZORPAY_KEY_SECRET", "RAZORPAY_KEY_SECI"])
     if not secret: raise HTTPException(503,"Razorpay is not configured")
     expected=hmac.new(secret.encode(),f"{req.razorpay_payment_id}|{req.razorpay_subscription_id}".encode(),hashlib.sha256).hexdigest()
     return {"verified":hmac.compare_digest(expected,req.razorpay_signature)}
