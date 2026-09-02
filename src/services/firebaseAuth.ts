@@ -1,7 +1,7 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import config from '../../firebase-applet-config.json';
-import { UserProfile, ApplicationRecord, ApplicationAnswer } from '../types';
+import { UserProfile, ApplicationRecord } from '../types';
 
 export interface AuthUser {
   uid: string;
@@ -9,13 +9,16 @@ export interface AuthUser {
   displayName?: string;
   idToken: string;
   refreshToken?: string;
+  expiresAt?: number;
 }
 
 const AUTH_STORAGE_KEY = 'slam_auth_session';
+const TOKEN_REFRESH_URL = `https://securetoken.googleapis.com/v1/token?key=${config.apiKey}`;
 
 export class AuthService {
   private static currentUser: AuthUser | null = null;
   private static listeners: ((user: AuthUser | null) => void)[] = [];
+  private static refreshPromise: Promise<AuthUser | null> | null = null;
 
   public static init(): AuthUser | null {
     try {
@@ -26,14 +29,13 @@ export class AuthService {
       }
     } catch (e) {
       console.warn('Could not restore auth session:', e);
+      this.currentUser = null;
     }
     return this.currentUser;
   }
 
   public static getUser(): AuthUser | null {
-    if (!this.currentUser) {
-      this.init();
-    }
+    if (!this.currentUser) this.init();
     return this.currentUser;
   }
 
@@ -49,6 +51,61 @@ export class AuthService {
     this.listeners.forEach((l) => l(this.currentUser));
   }
 
+  private static persist(user: AuthUser) {
+    this.currentUser = user;
+    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
+    this.notify();
+  }
+
+  public static async getValidIdToken(forceRefresh = false): Promise<string | null> {
+    const user = this.getUser();
+    if (!user?.idToken) return null;
+
+    const expiresAt = user.expiresAt || 0;
+    const stillValid = expiresAt > Date.now() + 60_000;
+    if (!forceRefresh && stillValid) return user.idToken;
+    if (!user.refreshToken) return user.idToken;
+
+    if (!this.refreshPromise) {
+      this.refreshPromise = (async () => {
+        try {
+          const response = await fetch(TOKEN_REFRESH_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+              grant_type: 'refresh_token',
+              refresh_token: user.refreshToken || '',
+            }),
+          });
+          const data = await response.json();
+          if (!response.ok || !data.id_token) {
+            throw new Error(data?.error?.message || 'Firebase session refresh failed.');
+          }
+          const refreshed: AuthUser = {
+            ...user,
+            idToken: data.id_token,
+            refreshToken: data.refresh_token || user.refreshToken,
+            expiresAt: Date.now() + Number(data.expires_in || 3600) * 1000,
+          };
+          this.persist(refreshed);
+          return refreshed;
+        } catch (error) {
+          console.warn('Firebase session refresh failed:', error);
+          return null;
+        } finally {
+          this.refreshPromise = null;
+        }
+      })();
+    }
+
+    const refreshed = await this.refreshPromise;
+    return refreshed?.idToken || user.idToken;
+  }
+
+  public static async getIdToken(forceRefresh = false): Promise<string | null> {
+    return this.getValidIdToken(forceRefresh);
+  }
+
   public static async signInWithGoogle(): Promise<AuthUser> {
     try {
       const app = !getApps().length ? initializeApp(config) : getApp();
@@ -56,20 +113,22 @@ export class AuthService {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: 'select_account' });
       const cred = await signInWithPopup(auth, provider);
-      const token = await cred.user.getIdToken();
+      const token = await cred.user.getIdToken(true);
       const user: AuthUser = {
         uid: cred.user.uid,
         email: cred.user.email || '',
         displayName: cred.user.displayName || cred.user.email?.split('@')[0] || 'User',
         idToken: token,
         refreshToken: cred.user.refreshToken,
+        expiresAt: Date.now() + 55 * 60 * 1000,
       };
-
-      this.currentUser = user;
-      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-      this.notify();
+      this.persist(user);
       return user;
     } catch (err: any) {
+      if (err?.code === 'auth/unauthorized-domain') {
+        const host = window.location.hostname;
+        throw new Error(`Google sign-in is not enabled for ${host}. Add this domain in Firebase Console → Authentication → Settings → Authorized domains, then try again.`);
+      }
       if (err?.code === 'auth/popup-closed-by-user' || err?.message?.includes('closed-by-user')) {
         throw new Error('Google sign-in was cancelled.');
       }
@@ -85,30 +144,21 @@ export class AuthService {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        password: pass,
-        returnSecureToken: true,
-      }),
+      body: JSON.stringify({ email, password: pass, returnSecureToken: true }),
     });
-
     const data = await res.json();
     if (!res.ok) {
-      const msg = data?.error?.message || 'Failed to create account.';
-      throw new Error(this.friendlyAuthError(msg));
+      throw new Error(this.friendlyAuthError(data?.error?.message || 'Failed to create account.'));
     }
-
     const user: AuthUser = {
       uid: data.localId,
       email: data.email,
-      displayName: name || data.email?.split('@')[0] || 'User',
+      displayName: name?.trim() || data.email?.split('@')[0] || 'User',
       idToken: data.idToken,
       refreshToken: data.refreshToken,
+      expiresAt: Date.now() + Number(data.expiresIn || 3600) * 1000,
     };
-
-    this.currentUser = user;
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    this.notify();
+    this.persist(user);
     return user;
   }
 
@@ -117,30 +167,21 @@ export class AuthService {
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email,
-        password: pass,
-        returnSecureToken: true,
-      }),
+      body: JSON.stringify({ email, password: pass, returnSecureToken: true }),
     });
-
     const data = await res.json();
     if (!res.ok) {
-      const msg = data?.error?.message || 'Authentication failed.';
-      throw new Error(this.friendlyAuthError(msg));
+      throw new Error(this.friendlyAuthError(data?.error?.message || 'Authentication failed.'));
     }
-
     const user: AuthUser = {
       uid: data.localId,
       email: data.email,
       displayName: data.displayName || data.email?.split('@')[0] || 'User',
       idToken: data.idToken,
       refreshToken: data.refreshToken,
+      expiresAt: Date.now() + Number(data.expiresIn || 3600) * 1000,
     };
-
-    this.currentUser = user;
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    this.notify();
+    this.persist(user);
     return user;
   }
 
@@ -151,23 +192,17 @@ export class AuthService {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ returnSecureToken: true }),
     });
-
     const data = await res.json();
-    if (!res.ok) {
-      throw new Error('Failed to start guest session.');
-    }
-
+    if (!res.ok) throw new Error('Failed to start guest session.');
     const user: AuthUser = {
       uid: data.localId,
       email: 'guest@slam.local',
       displayName: 'Guest Candidate',
       idToken: data.idToken,
       refreshToken: data.refreshToken,
+      expiresAt: Date.now() + Number(data.expiresIn || 3600) * 1000,
     };
-
-    this.currentUser = user;
-    localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(user));
-    this.notify();
+    this.persist(user);
     return user;
   }
 
@@ -188,28 +223,18 @@ export class AuthService {
   }
 }
 
-// REST helper to encode plain JS objects into Firestore document format
 function toFirestoreFields(obj: any): Record<string, any> {
   const fields: Record<string, any> = {};
   for (const [key, value] of Object.entries(obj)) {
-    if (value === null || value === undefined) {
-      fields[key] = { nullValue: null };
-    } else if (typeof value === 'boolean') {
-      fields[key] = { booleanValue: value };
-    } else if (typeof value === 'number') {
-      fields[key] = { doubleValue: value };
-    } else if (typeof value === 'string') {
-      fields[key] = { stringValue: value };
-    } else if (Array.isArray(value)) {
-      fields[key] = { stringValue: JSON.stringify(value) };
-    } else if (typeof value === 'object') {
-      fields[key] = { stringValue: JSON.stringify(value) };
-    }
+    if (value === null || value === undefined) fields[key] = { nullValue: null };
+    else if (typeof value === 'boolean') fields[key] = { booleanValue: value };
+    else if (typeof value === 'number') fields[key] = { doubleValue: value };
+    else if (typeof value === 'string') fields[key] = { stringValue: value };
+    else if (Array.isArray(value) || typeof value === 'object') fields[key] = { stringValue: JSON.stringify(value) };
   }
   return fields;
 }
 
-// REST helper to decode Firestore document fields to plain JS object
 function fromFirestoreFields(fields: Record<string, any>): any {
   const result: Record<string, any> = {};
   if (!fields) return result;
@@ -217,40 +242,38 @@ function fromFirestoreFields(fields: Record<string, any>): any {
     if ('stringValue' in valObj) {
       const s = valObj.stringValue;
       if (s.startsWith('[') || s.startsWith('{')) {
-        try {
-          result[key] = JSON.parse(s);
-          continue;
-        } catch {
-          // fallback to string
-        }
+        try { result[key] = JSON.parse(s); continue; } catch { /* keep string */ }
       }
       result[key] = s;
-    } else if ('doubleValue' in valObj || 'integerValue' in valObj) {
-      result[key] = Number(valObj.doubleValue ?? valObj.integerValue);
-    } else if ('booleanValue' in valObj) {
-      result[key] = Boolean(valObj.booleanValue);
-    } else if ('nullValue' in valObj) {
-      result[key] = null;
-    }
+    } else if ('doubleValue' in valObj || 'integerValue' in valObj) result[key] = Number(valObj.doubleValue ?? valObj.integerValue);
+    else if ('booleanValue' in valObj) result[key] = Boolean(valObj.booleanValue);
+    else if ('nullValue' in valObj) result[key] = null;
   }
   return result;
 }
 
-// Firestore Database operations
-const getDbBaseUrl = () => {
-  return `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/${config.firestoreDatabaseId}/documents`;
-};
+const getDbBaseUrl = () => `https://firestore.googleapis.com/v1/projects/${config.projectId}/databases/${config.firestoreDatabaseId}/documents`;
+
+async function firestoreRequest(uid: string, token: string, path: string, init: RequestInit = {}, retry = true): Promise<Response> {
+  const url = `${getDbBaseUrl()}/users/${uid}/userData/${path}?key=${config.apiKey}`;
+  const response = await fetch(url, {
+    ...init,
+    headers: { ...(init.headers || {}), Authorization: `Bearer ${token}` },
+  });
+  if ((response.status === 401 || response.status === 403) && retry) {
+    const refreshed = await AuthService.getValidIdToken(true);
+    if (refreshed && refreshed !== token) return firestoreRequest(uid, refreshed, path, init, false);
+  }
+  return response;
+}
 
 export async function fetchFirestoreProfile(uid: string, token: string): Promise<UserProfile | null> {
   try {
-    const url = `${getDbBaseUrl()}/users/${uid}/userData/profile?key=${config.apiKey}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const valid = (await AuthService.getValidIdToken()) || token;
+    const res = await firestoreRequest(uid, valid, 'profile');
     if (!res.ok) return null;
     const data = await res.json();
-    if (!data.fields) return null;
-    return fromFirestoreFields(data.fields) as UserProfile;
+    return data.fields ? (fromFirestoreFields(data.fields) as UserProfile) : null;
   } catch (e) {
     console.warn('Failed to fetch profile from Firestore:', e);
     return null;
@@ -259,15 +282,11 @@ export async function fetchFirestoreProfile(uid: string, token: string): Promise
 
 export async function saveFirestoreProfile(uid: string, token: string, profile: UserProfile): Promise<boolean> {
   try {
-    const url = `${getDbBaseUrl()}/users/${uid}/userData/profile?key=${config.apiKey}`;
-    const fields = toFirestoreFields(profile);
-    const res = await fetch(url, {
+    const valid = (await AuthService.getValidIdToken()) || token;
+    const res = await firestoreRequest(uid, valid, 'profile', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ fields }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: toFirestoreFields(profile) }),
     });
     return res.ok;
   } catch (e) {
@@ -278,14 +297,11 @@ export async function saveFirestoreProfile(uid: string, token: string, profile: 
 
 export async function fetchFirestoreApplications(uid: string, token: string): Promise<ApplicationRecord[]> {
   try {
-    const url = `${getDbBaseUrl()}/users/${uid}/userData/applications?key=${config.apiKey}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const valid = (await AuthService.getValidIdToken()) || token;
+    const res = await firestoreRequest(uid, valid, 'applications');
     if (!res.ok) return [];
     const data = await res.json();
-    if (!data.fields?.items?.stringValue) return [];
-    return JSON.parse(data.fields.items.stringValue) as ApplicationRecord[];
+    return data.fields?.items?.stringValue ? JSON.parse(data.fields.items.stringValue) as ApplicationRecord[] : [];
   } catch (e) {
     console.warn('Failed to fetch applications from Firestore:', e);
     return [];
@@ -294,18 +310,11 @@ export async function fetchFirestoreApplications(uid: string, token: string): Pr
 
 export async function saveFirestoreApplications(uid: string, token: string, apps: ApplicationRecord[]): Promise<boolean> {
   try {
-    const url = `${getDbBaseUrl()}/users/${uid}/userData/applications?key=${config.apiKey}`;
-    const fields = {
-      items: { stringValue: JSON.stringify(apps) },
-      updatedAt: { stringValue: new Date().toISOString() },
-    };
-    const res = await fetch(url, {
+    const valid = (await AuthService.getValidIdToken()) || token;
+    const res = await firestoreRequest(uid, valid, 'applications', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ fields }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { items: { stringValue: JSON.stringify(apps) }, updatedAt: { stringValue: new Date().toISOString() } } }),
     });
     return res.ok;
   } catch (e) {
@@ -316,36 +325,28 @@ export async function saveFirestoreApplications(uid: string, token: string, apps
 
 export async function fetchFirestoreSavedJobIds(uid: string, token: string): Promise<string[]> {
   try {
-    const url = `${getDbBaseUrl()}/users/${uid}/userData/savedJobs?key=${config.apiKey}`;
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const valid = (await AuthService.getValidIdToken()) || token;
+    const res = await firestoreRequest(uid, valid, 'savedJobs');
     if (!res.ok) return [];
     const data = await res.json();
-    if (!data.fields?.jobIds?.stringValue) return [];
-    return JSON.parse(data.fields.jobIds.stringValue) as string[];
+    return data.fields?.jobIds?.stringValue ? JSON.parse(data.fields.jobIds.stringValue) as string[] : [];
   } catch (e) {
+    console.warn('Failed to fetch saved jobs from Firestore:', e);
     return [];
   }
 }
 
 export async function saveFirestoreSavedJobIds(uid: string, token: string, jobIds: string[]): Promise<boolean> {
   try {
-    const url = `${getDbBaseUrl()}/users/${uid}/userData/savedJobs?key=${config.apiKey}`;
-    const fields = {
-      jobIds: { stringValue: JSON.stringify(jobIds) },
-      updatedAt: { stringValue: new Date().toISOString() },
-    };
-    const res = await fetch(url, {
+    const valid = (await AuthService.getValidIdToken()) || token;
+    const res = await firestoreRequest(uid, valid, 'savedJobs', {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({ fields }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields: { jobIds: { stringValue: JSON.stringify(jobIds) }, updatedAt: { stringValue: new Date().toISOString() } } }),
     });
     return res.ok;
   } catch (e) {
+    console.warn('Failed to save saved jobs to Firestore:', e);
     return false;
   }
 }
