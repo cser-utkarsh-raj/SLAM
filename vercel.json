@@ -5,9 +5,16 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60
+    },
+    "api/jobs/search.py": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
+    {
+      "source": "/api/jobs/search",
+      "destination": "/api/jobs/search.py"
+    },
     {
       "source": "/api/:path*",
       "destination": "/api/index.py"
