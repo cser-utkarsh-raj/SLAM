@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { track } from '@vercel/analytics';
 import { Navbar, ActiveTab } from './components/Navbar';
 import { LandingPage } from './components/LandingPage';
 import { JobDiscoveryView } from './components/JobDiscoveryView';
@@ -76,8 +77,10 @@ export default function App() {
       const raw=await response.text(); let data:any={};
       try{data=raw?JSON.parse(raw):{};}catch{throw new Error('The live job service returned invalid data. Please try again.');}
       if(!response.ok)throw new Error(data.error||data.detail||`Job discovery failed (${response.status}).`);
-      setJobs(Array.isArray(data.jobs)?data.jobs:[]);
-      if(!Array.isArray(data.jobs)||data.jobs.length===0)setSearchError(data.warning||'No verified live listings matched these filters.');
+      const resultJobs=Array.isArray(data.jobs)?data.jobs:[];
+      setJobs(resultJobs);
+      track('job_search', { result_count: resultJobs.length, remote_only: remoteOnly });
+      if(resultJobs.length===0)setSearchError(data.warning||'No verified live listings matched these filters.');
     }catch(error){setJobs([]);setSearchError(error instanceof Error ? error.message : 'Live job discovery is temporarily unavailable.');}
     finally{setIsSearching(false);}
   },[authUser,userProfile,searchQuery,locationQuery,remoteOnly]);
@@ -88,6 +91,7 @@ export default function App() {
     const score=(job as any).match?.compatibilityScore;
     const record:ApplicationRecord={id:`app-${Date.now()}`,jobId:job.id,jobTitle:job.title,company:job.company,location:job.location,salaryText:job.salaryText,dateDiscovered:job.postingDate||new Date().toISOString().slice(0,10),status:'PREPARED',compatibilityScore:typeof score==='number'?score:0,applicationMode:'REVIEW',tailoredResume:resume||undefined,coverLetter:letter||undefined,submittedAnswers:answers,notes:'Prepared from verified profile data. Review before submitting.',applicationUrl:job.applicationUrl,source:job.primarySource||'SLAM',lastUpdated:new Date().toISOString()};
     setApplicationRecords(prev=>[record,...prev.filter(x=>x.jobId!==job.id)]); setActiveTab('applications');
+    track('application_prepared');
   };
   const signOut=()=>{AuthService.signOut();setAuthUser(null);setUserProfile(emptyProfile);setJobs([]);setSearchError('');setActiveTab('discover');};
   const openSignIn=()=>{setAuthModalMode('signin');setIsAuthModalOpen(true);};
@@ -101,9 +105,9 @@ export default function App() {
       <div className="relative z-10 flex min-h-screen flex-col">
         <Navbar activeTab={activeTab} setActiveTab={setActiveTab} userProfile={userProfile} authUser={authUser} onOpenAuth={openSignIn} onSignOut={signOut} onOpenSlamPlus={()=>setIsSlamPlusModalOpen(true)} isSubscribed={isSubscribed}/>
         <main className="flex-1 w-full pb-16">
-          {activeTab==='onboarding'&&<OnboardingFlow userProfile={userProfile} setUserProfile={setUserProfile} onComplete={()=>{setActiveTab('discover');void performJobSearch();}}/>}
-          {activeTab==='discover'&&<JobDiscoveryView jobs={jobs} userProfile={userProfile} savedJobIds={savedJobIds} onToggleSaveJob={id=>setSavedJobIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id])} compareJobIds={compareJobIds} onToggleCompareJob={job=>setCompareJobIds(p=>p.includes(job.id)?p.filter(x=>x!==job.id):p.length<4?[...p,job.id]:p)} onPrepareJob={()=>{}} answerLibrary={answerLibrary} onUpdateAnswerLibrary={setAnswerLibrary} onLaunchAutomation={()=>{}} onSaveToTracker={handleSaveToTracker} searchQuery={searchQuery} setSearchQuery={setSearchQuery} countryQuery={locationQuery} setCountryQuery={setLocationQuery} remoteOnly={remoteOnly} setRemoteOnly={setRemoteOnly} onSearch={performJobSearch} isSearching={isSearching} searchError={searchError}/>} />
-          {activeTab==='saved'&&<SavedJobsView jobs={jobs} savedJobIds={savedJobIds} userProfile={userProfile} onToggleSaveJob={id=>setSavedJobIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id])} onNavigateToDiscover={()=>setActiveTab('discover')} onSaveToTracker={handleSaveToTracker}/>} 
+          {activeTab==='onboarding'&&<OnboardingFlow userProfile={userProfile} setUserProfile={setUserProfile} onComplete={()=>{setActiveTab('discover');track('profile_completed');void performJobSearch();}}/>}
+          {activeTab==='discover'&&<JobDiscoveryView jobs={jobs} userProfile={userProfile} savedJobIds={savedJobIds} onToggleSaveJob={id=>{setSavedJobIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);track('job_saved');}} compareJobIds={compareJobIds} onToggleCompareJob={job=>setCompareJobIds(p=>p.includes(job.id)?p.filter(x=>x!==job.id):p.length<4?[...p,job.id]:p)} onPrepareJob={()=>{}} answerLibrary={answerLibrary} onUpdateAnswerLibrary={setAnswerLibrary} onLaunchAutomation={()=>{}} onSaveToTracker={handleSaveToTracker} searchQuery={searchQuery} setSearchQuery={setSearchQuery} countryQuery={locationQuery} setCountryQuery={setLocationQuery} remoteOnly={remoteOnly} setRemoteOnly={setRemoteOnly} onSearch={performJobSearch} isSearching={isSearching} searchError={searchError}/>} />
+          {activeTab==='saved'&&<SavedJobsView jobs={jobs} savedJobIds={savedJobIds} userProfile={userProfile} onToggleSaveJob={id=>{setSavedJobIds(p=>p.includes(id)?p.filter(x=>x!==id):[...p,id]);track('job_saved');}} onNavigateToDiscover={()=>setActiveTab('discover')} onSaveToTracker={handleSaveToTracker}/>} 
           {activeTab==='applications'&&<TrackerView applications={applicationRecords} onUpdateStatus={(id,status)=>setApplicationRecords(p=>p.map(r=>r.id===id?{...r,status,dateApplied:status==='APPLIED'&&!r.dateApplied?new Date().toISOString().slice(0,10):r.dateApplied,lastUpdated:new Date().toISOString()}:r))} onUpdateNotes={(id,notes)=>setApplicationRecords(p=>p.map(r=>r.id===id?{...r,notes,lastUpdated:new Date().toISOString()}:r))}/>} 
           {activeTab==='profile'&&<ProfileView userProfile={userProfile} setUserProfile={setUserProfile}/>} 
         </main>
