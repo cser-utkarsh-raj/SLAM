@@ -40,7 +40,6 @@ export default function App() {
   const [answerLibrary, setAnswerLibrary] = useState<ApplicationAnswer[]>(() => readLocal('slam_answer_library', []));
   const [applicationRecords, setApplicationRecords] = useState<ApplicationRecord[]>(() => readLocal('slam_app_records', []));
   const [searchQuery, setSearchQuery] = useState('');
-  // This is the discovery location field. Country always comes from the profile.
   const [locationQuery, setLocationQuery] = useState('');
   const [remoteOnly, setRemoteOnly] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -52,7 +51,7 @@ export default function App() {
       if(!user){setShowLanding(true);return;}
       setShowLanding(false);
       const [profile,apps,saved]=await Promise.all([
-        fetchFirestoreProfile(user.uid,user.idToken), fetchFirestoreApplications(user.uid,user.idToken), fetchFirestoreSavedJobIds(user.uid,user.idToken,savedJobIds)
+        fetchFirestoreProfile(user.uid,user.idToken), fetchFirestoreApplications(user.uid,user.idToken), fetchFirestoreSavedJobIds(user.uid,user.idToken)
       ]);
       if(profile)setUserProfile(profile);
       if(apps)setApplicationRecords(apps);
