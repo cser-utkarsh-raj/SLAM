@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { track } from '@vercel/analytics';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AlertTriangle, Bookmark, BookmarkCheck, ExternalLink, MapPin, RefreshCw, Search } from 'lucide-react';
 import { JobPosting, UserProfile, ApplicationAnswer, TailoredResume } from '../types';
@@ -22,7 +23,7 @@ interface Props {
   setCountryQuery: (c: string) => void;
   remoteOnly: boolean;
   setRemoteOnly: (r: boolean) => void;
-  onSearch: () => void;
+  onSearch: (queryOverride?: string) => void;
   isSearching: boolean;
   searchError?: string;
 }
@@ -71,7 +72,12 @@ export const JobDiscoveryView: React.FC<Props> = ({
 
   const runPreset = (query: string) => {
     setSearchQuery(query);
-    window.setTimeout(onSearch, 0);
+    void onSearch(query);
+  };
+
+  const selectJob = (job: JobPosting) => {
+    setSelectedJobId(job.id);
+    track('job_opened', { source: getSourceName(job) });
   };
 
   return (
@@ -93,12 +99,12 @@ export const JobDiscoveryView: React.FC<Props> = ({
         </div>
 
         {isSearching && <div className="max-w-2xl mx-auto py-20 text-center bg-zinc-900/60 border border-zinc-800 rounded-2xl p-8"><RefreshCw className="w-8 h-8 text-yellow-400 mx-auto mb-4 animate-spin" /><h2 className="text-xl font-display font-black text-white">SEARCHING {country.toUpperCase()}</h2><p className="text-xs text-zinc-500 mt-2">Only country-matched live listings are allowed through.</p></div>}
-        {!isSearching && searchError && <div className="max-w-2xl mx-auto py-16 text-center bg-zinc-900/70 border border-red-900/50 rounded-2xl p-8"><AlertTriangle className="w-10 h-10 text-yellow-400 mx-auto mb-4" /><h2 className="text-2xl font-display font-black text-white">LIVE SEARCH UNAVAILABLE</h2><p className="text-sm text-zinc-400 mt-2 max-w-lg mx-auto">{searchError}</p><button onClick={onSearch} className="mt-6 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black text-xs font-black rounded-lg inline-flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5" /> Retry</button></div>}
+        {!isSearching && searchError && <div className="max-w-2xl mx-auto py-16 text-center bg-zinc-900/70 border border-red-900/50 rounded-2xl p-8"><AlertTriangle className="w-10 h-10 text-yellow-400 mx-auto mb-4" /><h2 className="text-2xl font-display font-black text-white">LIVE SEARCH UNAVAILABLE</h2><p className="text-sm text-zinc-400 mt-2 max-w-lg mx-auto">{searchError}</p><button onClick={() => onSearch()} className="mt-6 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black text-xs font-black rounded-lg inline-flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5" /> Retry</button></div>}
         {!isSearching && !searchError && rankedJobs.length === 0 && <div className="max-w-2xl mx-auto py-16 text-center bg-zinc-900/50 border border-zinc-800 rounded-2xl p-8"><Search className="w-12 h-12 text-zinc-700 mx-auto mb-4" /><h2 className="text-2xl font-display font-black text-white">NO VERIFIED LISTINGS FOUND</h2><p className="text-sm text-zinc-400 mt-2">Nothing matched <strong className="text-white">{searchQuery || 'your profile'}</strong> in <strong className="text-white">{country}</strong>. Try a broader role or nearby location.</p><button onClick={() => runPreset('developer')} className="mt-6 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold rounded-lg border border-zinc-700 inline-flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5 text-yellow-400" /> Broaden search</button></div>}
 
         {!isSearching && !searchError && rankedJobs.length > 0 && <div className="grid grid-cols-1 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] gap-6 items-start">
           <div className="space-y-2.5"><div className="flex items-center justify-between px-1 pb-2 border-b border-zinc-800 text-[10px] font-mono text-zinc-600 uppercase tracking-widest"><span>Ranked opportunities</span><span>Compatibility</span></div>
-            <AnimatePresence initial={false}>{rankedJobs.map((job, index) => { const sourceName = getSourceName(job); const score = scoreFor(job); const selected = selectedJob?.id === job.id; const saved = savedJobIds.includes(job.id); return <motion.button key={job.id} type="button" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * .025, .25) }} onClick={() => setSelectedJobId(job.id)} className={`w-full text-left p-4 rounded-xl border transition-all ${selected ? 'bg-zinc-900 border-yellow-400/80 shadow-lg shadow-yellow-400/5' : 'bg-[#080808] border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/70'}`}>
+            <AnimatePresence initial={false}>{rankedJobs.map((job, index) => { const sourceName = getSourceName(job); const score = scoreFor(job); const selected = selectedJob?.id === job.id; const saved = savedJobIds.includes(job.id); return <motion.button key={job.id} type="button" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * .025, .25) }} onClick={() => selectJob(job)} className={`w-full text-left p-4 rounded-xl border transition-all ${selected ? 'bg-zinc-900 border-yellow-400/80 shadow-lg shadow-yellow-400/5' : 'bg-[#080808] border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/70'}`}>
               <div className="flex gap-3 min-w-0"><SourceMark name={sourceName} size={38} /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-sm font-bold text-white line-clamp-2">{job.title}</h3><p className="text-xs text-zinc-400 truncate mt-1">{job.company} · {job.location || 'Location not specified'}</p></div><div className="text-right shrink-0">{score !== null ? <><div className={`text-xl font-display font-black ${score >= 75 ? 'text-yellow-400' : 'text-white'}`}>{score}%</div><div className="text-[8px] font-mono text-zinc-600 uppercase">Match</div></> : <div className="text-xs font-mono text-zinc-600">UNSCORED</div>}</div></div><div className="mt-3 pt-2 border-t border-zinc-900 flex items-center justify-between gap-3 text-[10px] text-zinc-600"><span className="truncate">Source: <strong className="text-zinc-400">{sourceName}</strong></span>{saved && <span className="text-yellow-400 flex items-center gap-1"><BookmarkCheck className="w-3 h-3" /> Saved</span>}</div></div></div>
             </motion.button>; })}</AnimatePresence>
           </div>
@@ -106,12 +112,13 @@ export const JobDiscoveryView: React.FC<Props> = ({
           <AnimatePresence mode="wait">{selectedJob && <motion.article key={selectedJob.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="lg:sticky lg:top-20 bg-[#090909] border border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-2xl overflow-hidden">
             {(() => { const source = getSource(selectedJob); const sourceName = getSourceName(selectedJob); const score = scoreFor(selectedJob); const saved = savedJobIds.includes(selectedJob.id); return <>
               <div className="flex items-start justify-between gap-4 pb-5 border-b border-zinc-800"><div className="min-w-0"><div className="inline-flex items-center gap-2 mb-3 px-2.5 py-1.5 bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-[10px] font-mono font-bold uppercase tracking-wider"><SourceMark name={sourceName} size={22} /> Source: {sourceName}</div><h2 className="text-2xl sm:text-3xl font-display font-black text-white leading-tight">{selectedJob.title}</h2><p className="mt-1.5 text-sm font-semibold text-zinc-400">{selectedJob.company} · {selectedJob.location || 'Location not specified'}</p></div><button type="button" onClick={() => onToggleSaveJob(selectedJob.id)} className={`shrink-0 p-2.5 rounded-xl border ${saved ? 'text-yellow-400 border-yellow-400/50 bg-yellow-400/10' : 'text-zinc-400 border-zinc-800 bg-zinc-950 hover:text-white'}`} aria-label={saved ? 'Remove saved job' : 'Save job'}>{saved ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}</button></div>
-              <div className="mt-5 p-4 bg-zinc-950 border border-zinc-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div className="flex items-center gap-3 min-w-0"><SourceMark name={sourceName} size={44} /><div className="min-w-0"><div className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">Listing source</div><div className="text-sm font-bold text-white">{sourceName}</div><div className="text-[10px] text-zinc-500 mt-0.5">{source?.sourceType || 'External job source'} · original listing</div></div></div>{selectedJob.applicationUrl && <a href={selectedJob.applicationUrl} target="_blank" rel="noopener noreferrer" className="shrink-0 px-4 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg text-xs font-black inline-flex items-center justify-center gap-2">OPEN ORIGINAL <ExternalLink className="w-3.5 h-3.5" /></a>}</div>
+              <div className="mt-5 p-4 bg-zinc-950 border border-zinc-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div className="flex items-center gap-3 min-w-0"><SourceMark name={sourceName} size={44} /><div className="min-w-0"><div className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">Listing source</div><div className="text-sm font-bold text-white">{sourceName}</div><div className="text-[10px] text-zinc-500 mt-0.5">{source?.sourceType || 'External job source'} · original listing</div></div></div>{selectedJob.applicationUrl && <a href={selectedJob.applicationUrl} onClick={() => track('application_link_opened', { source: sourceName })} target="_blank" rel="noopener noreferrer" className="shrink-0 px-4 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg text-xs font-black inline-flex items-center justify-center gap-2">OPEN ORIGINAL <ExternalLink className="w-3.5 h-3.5" /></a>}</div>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-5"><div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl"><div className="text-[9px] font-mono text-zinc-600 uppercase">Country filter</div><div className="text-xs font-bold text-white mt-1">{country}</div></div><div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl"><div className="text-[9px] font-mono text-zinc-600 uppercase">Posted</div><div className="text-xs font-bold text-white mt-1">{selectedJob.postingDate || 'Not supplied'}</div></div><div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl"><div className="text-[9px] font-mono text-zinc-600 uppercase">Match</div><div className="text-xs font-bold text-yellow-400 mt-1">{score === null ? 'Not scored' : `${score}%`}</div></div></div>
               <div className="mt-6"><div className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-2">Description</div><p className="text-sm leading-7 text-zinc-300 whitespace-pre-line">{selectedJob.description || 'The source did not provide a readable description.'}</p></div>
               <div className="mt-6 pt-4 border-t border-zinc-900 flex flex-wrap items-center justify-between gap-3 text-[10px] font-mono text-zinc-600"><span>Source: {sourceName}</span><span>SLAM does not create or rewrite listings.</span></div>
             </>; })()}
-          </motion.article>}</AnimatePresence>
+          </motion.article>}
+        </AnimatePresence>
         </div>}
       </div>
     </div>
