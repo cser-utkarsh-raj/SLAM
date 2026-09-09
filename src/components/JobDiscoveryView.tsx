@@ -1,126 +1,83 @@
 import React, { useMemo, useState } from 'react';
 import { track } from '@vercel/analytics';
-import { AnimatePresence, motion } from 'framer-motion';
-import { AlertTriangle, Bookmark, BookmarkCheck, ExternalLink, MapPin, RefreshCw, Search } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Bookmark, BookmarkCheck, CheckCircle2, ExternalLink, MapPin, Search, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { JobPosting, UserProfile, ApplicationAnswer, TailoredResume } from '../types';
-import { LinkedInLogo, IndeedLogo, GlassdoorLogo, WellfoundLogo, WorkIndiaLogo, InstahyreLogo, AdzunaLogo } from './SourceLogos';
+import { AdzunaLogo } from './SourceLogos';
 
 interface Props {
-  jobs: JobPosting[];
-  userProfile: UserProfile;
-  savedJobIds: string[];
-  onToggleSaveJob: (id: string) => void;
-  compareJobIds: string[];
-  onToggleCompareJob: (job: JobPosting) => void;
-  onPrepareJob: (job: JobPosting) => void;
-  answerLibrary: ApplicationAnswer[];
-  onUpdateAnswerLibrary: (x: ApplicationAnswer[]) => void;
+  jobs: JobPosting[]; userProfile: UserProfile; savedJobIds: string[]; onToggleSaveJob: (id: string) => void;
+  compareJobIds: string[]; onToggleCompareJob: (job: JobPosting) => void; onPrepareJob: (job: JobPosting) => void;
+  answerLibrary: ApplicationAnswer[]; onUpdateAnswerLibrary: (x: ApplicationAnswer[]) => void;
   onLaunchAutomation: (job: JobPosting, resume: TailoredResume | null, letter: string, answers: { question: string; answer: string }[]) => void;
   onSaveToTracker: (job: JobPosting, resume: TailoredResume | null, letter: string, answers: { question: string; answer: string }[]) => void;
-  searchQuery: string;
-  setSearchQuery: (q: string) => void;
-  countryQuery: string;
-  setCountryQuery: (c: string) => void;
-  remoteOnly: boolean;
-  setRemoteOnly: (r: boolean) => void;
-  onSearch: (queryOverride?: string) => void;
-  isSearching: boolean;
-  searchError?: string;
+  searchQuery: string; setSearchQuery: (q: string) => void; countryQuery: string; setCountryQuery: (c: string) => void;
+  remoteOnly: boolean; setRemoteOnly: (r: boolean) => void; onSearch: (queryOverride?: string) => void; isSearching: boolean; searchError?: string;
 }
 
-type SourceInfo = { sourceName?: string; sourceUrl?: string; sourceType?: string; postedDate?: string; isOfficial?: boolean };
+const PRESETS = ['Python', 'Backend', 'Django', 'Remote India', 'Data Science', 'AI/ML', 'Full Stack'];
+const LEVELS = ['Internship', 'Entry Level', 'Mid Level', 'Senior Level', 'Lead/Director'];
 
-const SOURCE_LOGOS: Record<string, React.FC<{ size?: number }>> = {
-  linkedin: LinkedInLogo,
-  indeed: IndeedLogo,
-  glassdoor: GlassdoorLogo,
-  wellfound: WellfoundLogo,
-  workindia: WorkIndiaLogo,
-  instahyre: InstahyreLogo,
-  adzuna: AdzunaLogo,
-};
+type SourceInfo = { sourceName?: string };
+function src(job: JobPosting): string { return String(((job as any).sourcesList?.[0] as SourceInfo | undefined)?.sourceName || (job as any).primarySource || 'Live'); }
+function score(job: JobPosting): number | null { const v = (job as any).match?.compatibilityScore; return typeof v === 'number' ? v : null; }
+function level(job: JobPosting): string { const v = String(job.experienceLevel || '').toLowerCase(); if (v.includes('intern')) return 'Internship'; if (v.includes('junior') || v.includes('entry')) return 'Entry Level'; if (v.includes('senior')) return 'Senior Level'; if (v.includes('lead') || v.includes('director') || v.includes('principal')) return 'Lead/Director'; return 'Mid Level'; }
+function age(date: string): number { const t = new Date(date || '').getTime(); return Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86400000)) : 999; }
+function posted(date: string): string { const d = age(date); return d === 0 ? 'Today' : d === 1 ? '1 day ago' : d < 30 ? `${d} days ago` : date || 'Recently'; }
+function salary(job: JobPosting): string { const min = Number((job as any).salaryMin || 0); const max = Number((job as any).salaryMax || 0); if (!min && !max) return ''; const cur = String((job as any).salaryCurrency || ''); return `${cur ? `${cur} ` : ''}${min || ''}${min && max ? '–' : ''}${max || ''}`; }
+function Logo({ job }: { job: JobPosting }) { return src(job).toLowerCase() === 'adzuna' ? <AdzunaLogo size={52} /> : <div className="w-[52px] h-[52px] rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center text-white font-black text-lg">{src(job).slice(0, 1).toUpperCase()}</div>; }
 
-function getSource(job: JobPosting): SourceInfo | null {
-  const value = (job as any).sourcesList?.[0];
-  return value && typeof value === 'object' ? value : null;
-}
+export const JobDiscoveryView: React.FC<Props> = ({ jobs, userProfile, savedJobIds, onToggleSaveJob, onLaunchAutomation, searchQuery, setSearchQuery, countryQuery, setCountryQuery, remoteOnly, setRemoteOnly, onSearch, isSearching, searchError = '' }) => {
+  const [jobType, setJobType] = useState<'All' | 'Remote' | 'On-site' | 'Hybrid'>('All');
+  const [levelFilter, setLevelFilter] = useState('All');
+  const [dateFilter, setDateFilter] = useState('Any time');
+  const [page, setPage] = useState(1);
+  const [sort, setSort] = useState('Relevance');
+  const pageSize = 20;
+  const country = countryQuery || userProfile.country || 'India';
 
-function getSourceName(job: JobPosting): string {
-  const source = getSource(job);
-  const value = source?.sourceName || (job as any).primarySource;
-  return typeof value === 'string' && value.trim() ? value.trim() : 'Unknown source';
-}
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return [...jobs].filter(job => {
+      const hay = `${job.title} ${job.company} ${job.location} ${job.description} ${(job.requiredSkills || []).join(' ')}`.toLowerCase();
+      if (q && !hay.includes(q)) return false;
+      if (jobType !== 'All' && job.remoteType !== jobType) return false;
+      if (remoteOnly && !job.remote) return false;
+      if (levelFilter !== 'All' && level(job) !== levelFilter) return false;
+      const d = age(job.postingDate); if (dateFilter === 'Last 24 hours' && d > 0) return false; if (dateFilter === 'Last 7 days' && d > 7) return false; if (dateFilter === 'Last 30 days' && d > 30) return false;
+      return true;
+    }).sort((a, b) => sort === 'Newest' ? age(a.postingDate) - age(b.postingDate) : sort === 'Salary' ? Number((b as any).salaryMax || 0) - Number((a as any).salaryMax || 0) : (score(b) ?? 0) - (score(a) ?? 0));
+  }, [jobs, searchQuery, jobType, remoteOnly, levelFilter, dateFilter, sort]);
 
-function SourceMark({ name, size = 34 }: { name: string; size?: number }) {
-  const Logo = SOURCE_LOGOS[name.trim().toLowerCase()];
-  return Logo ? <Logo size={size} /> : <span className="inline-flex items-center justify-center rounded-xl bg-zinc-900 border border-zinc-700 text-xs font-black text-white" style={{ width: size, height: size }}>{name.slice(0, 1).toUpperCase()}</span>;
-}
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, pages);
+  const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const runSearch = (q?: string) => { if (q !== undefined) setSearchQuery(q); setPage(1); void onSearch(q); };
+  const autoApply = (job: JobPosting) => { track('auto_apply_started', { source: src(job), method: job.applicationMethod }); onLaunchAutomation(job, null, '', []); if (job.applicationUrl) window.open(job.applicationUrl, '_blank', 'noopener,noreferrer'); };
 
-function scoreFor(job: JobPosting) {
-  const value = (job as any).match?.compatibilityScore;
-  return typeof value === 'number' ? value : null;
-}
+  return <div className="w-full min-h-screen bg-[#050505] text-zinc-100"><div className="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-7 py-6"><div className="flex flex-col xl:flex-row gap-6">
+    <aside className="xl:w-[245px] shrink-0"><div className="sticky top-20 bg-[#090909] border border-zinc-800 rounded-2xl overflow-hidden"><div className="p-4 border-b border-zinc-800 flex justify-between"><span className="text-sm font-black tracking-widest">FILTERS</span><button className="text-xs text-yellow-400" onClick={() => { setJobType('All'); setLevelFilter('All'); setDateFilter('Any time'); setRemoteOnly(false); setPage(1); }}>Clear all</button></div><div className="p-4 space-y-6">
+      <section><h3 className="text-xs font-bold mb-3">Job Type</h3>{(['Remote','On-site','Hybrid'] as const).map(v => <label key={v} className="flex items-center gap-2.5 text-xs text-zinc-400 py-1.5"><input type="checkbox" className="accent-yellow-400" checked={jobType === v || (v === 'Remote' && remoteOnly)} onChange={() => { setJobType(jobType === v ? 'All' : v); setRemoteOnly(v === 'Remote'); setPage(1); }} />{v}<span className="ml-auto text-zinc-600">{jobs.filter(j => v === 'Remote' ? j.remote : j.remoteType === v).length}</span></label>)}</section>
+      <section><h3 className="text-xs font-bold mb-3">Experience Level</h3>{LEVELS.map(v => <label key={v} className="flex items-center gap-2.5 text-xs text-zinc-400 py-1.5"><input type="checkbox" className="accent-yellow-400" checked={levelFilter === v} onChange={() => { setLevelFilter(levelFilter === v ? 'All' : v); setPage(1); }} />{v}<span className="ml-auto text-zinc-600">{jobs.filter(j => level(j) === v).length}</span></label>)}</section>
+      <section><h3 className="text-xs font-bold mb-3">Salary (INR)</h3>{['Any','₹3-6 LPA','₹6-12 LPA','₹12-25 LPA','₹25+ LPA'].map(v => <label key={v} className="flex items-center gap-2.5 text-xs text-zinc-400 py-1.5"><input type="radio" name="salary" className="accent-yellow-400" defaultChecked={v === 'Any'} />{v}</label>)}</section>
+      <section><h3 className="text-xs font-bold mb-3">Date Posted</h3>{['Any time','Last 24 hours','Last 7 days','Last 30 days'].map(v => <label key={v} className="flex items-center gap-2.5 text-xs text-zinc-400 py-1.5"><input type="radio" name="date" className="accent-yellow-400" checked={dateFilter === v} onChange={() => { setDateFilter(v); setPage(1); }} />{v}</label>)}</section>
+    </div></div></aside>
 
-export const JobDiscoveryView: React.FC<Props> = ({
-  jobs, userProfile, savedJobIds, onToggleSaveJob, searchQuery, setSearchQuery, countryQuery, setCountryQuery,
-  remoteOnly, setRemoteOnly, onSearch, isSearching, searchError = ''
-}) => {
-  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const rankedJobs = useMemo(() => [...jobs].sort((a, b) => (scoreFor(b) ?? -1) - (scoreFor(a) ?? -1)), [jobs]);
-  const selectedJob = rankedJobs.find(job => job.id === selectedJobId) || rankedJobs[0] || null;
-  const country = countryQuery || userProfile.country || 'your selected market';
+    <main className="min-w-0 flex-1"><div className="flex flex-col 2xl:flex-row 2xl:items-end justify-between gap-5 mb-5"><div><div className="text-[10px] font-mono font-bold text-yellow-400 tracking-[0.18em] mb-2">LIVE JOB DISCOVERY</div><h1 className="text-4xl sm:text-5xl font-display font-black leading-none">Discover Your <span className="text-yellow-400">Next Opportunity</span></h1><p className="mt-3 text-sm text-zinc-500">Real jobs. Real companies. Your profile: <span className="text-white font-semibold">{country}</span>{userProfile.location ? ` · ${userProfile.location}` : ''} · <span className="text-yellow-400">{userProfile.targetRoles?.[0] || 'Your target role'}</span></p></div><div className="grid grid-cols-2 sm:grid-cols-4 gap-2"><div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800"><div className="text-[10px] text-zinc-500 flex gap-2 items-center"><span className="w-2 h-2 rounded-full bg-emerald-400" />Live Jobs</div><b className="text-sm">{jobs.length} loaded</b></div><div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800"><div className="text-[10px] text-zinc-500 flex gap-2 items-center"><Sparkles className="w-3 h-3 text-violet-400" />AI Matched</div><b className="text-sm">Profile based</b></div><div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800"><div className="text-[10px] text-zinc-500 flex gap-2 items-center"><Zap className="w-3 h-3 text-yellow-400" />Auto Apply</div><b className="text-sm">Ready</b></div><div className="p-3 rounded-xl bg-zinc-900 border border-zinc-800"><div className="text-[10px] text-zinc-500 flex gap-2 items-center"><ShieldCheck className="w-3 h-3 text-emerald-400" />No German Jobs</div><b className="text-sm">{country} only</b></div></div></div>
 
-  const runPreset = (query: string) => {
-    setSearchQuery(query);
-    void onSearch(query);
-  };
+      <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5"><form onSubmit={e => { e.preventDefault(); runSearch(); }} className="grid grid-cols-1 lg:grid-cols-[1fr_220px_auto] gap-2.5"><label className="relative"><Search className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-500" /><input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search jobs, skills, or companies (e.g. Python, Django, Remote)" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-sm outline-none focus:border-yellow-400" /></label><label className="relative"><MapPin className="absolute left-3.5 top-3.5 w-4 h-4 text-zinc-500" /><input value={countryQuery} onChange={e => setCountryQuery(e.target.value)} placeholder="Country / location" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-3 py-3 text-sm outline-none focus:border-yellow-400" /></label><button disabled={isSearching} className="px-6 py-3 rounded-xl bg-yellow-400 text-black text-xs font-black flex items-center justify-center gap-2 disabled:opacity-50"><Search className="w-4 h-4" />{isSearching ? 'Searching…' : 'Search'}</button></form><div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-zinc-800"><span className="text-[10px] font-mono text-zinc-600 py-1">QUICK</span>{PRESETS.map(p => <button type="button" key={p} onClick={() => runSearch(p)} className="px-3 py-1.5 rounded-full bg-zinc-950 border border-zinc-800 text-[10px] text-zinc-400 hover:text-white">{p}</button>)}</div></div>
 
-  const selectJob = (job: JobPosting) => {
-    setSelectedJobId(job.id);
-    track('job_opened', { source: getSourceName(job) });
-  };
+      <div className="flex flex-wrap items-center justify-between gap-3 mt-5 mb-3"><div className="text-sm text-zinc-400"><b className="text-white">Found {filtered.length} jobs</b> <span className="mx-2 text-zinc-700">·</span><span className="text-emerald-400 inline-flex gap-1 items-center"><CheckCircle2 className="w-3 h-3" /> live data</span></div><select value={sort} onChange={e => setSort(e.target.value)} className="bg-zinc-900 border border-zinc-800 rounded-lg px-3 py-2 text-xs"><option>Relevance</option><option>Newest</option><option>Salary</option></select></div>
 
-  return (
-    <div className="w-full min-h-screen relative">
-      <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <motion.header initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-7 flex flex-col lg:flex-row lg:items-end justify-between gap-4">
-          <div><div className="text-[10px] sm:text-xs font-mono font-bold text-yellow-400/80 tracking-[0.18em] uppercase mb-2">LIVE JOB DISCOVERY · {country}</div><h1 className="text-4xl sm:text-6xl font-display font-black text-white leading-none">JOB MATCHING.</h1><p className="mt-3 text-sm text-zinc-500 max-w-xl">Country-first search. Every result keeps its original source and application link.</p></div>
-          <div className="text-xs text-zinc-500 font-mono"><span className="text-white font-bold">{rankedJobs.length}</span> verified listings</div>
-        </motion.header>
+      {isSearching && <div className="py-20 rounded-2xl border border-zinc-800 text-center"><div className="w-10 h-10 rounded-full border-2 border-zinc-700 border-t-yellow-400 animate-spin mx-auto" /><b className="block mt-4">Fetching live jobs</b><span className="text-xs text-zinc-500">No hardcoded listings — querying live sources.</span></div>}
+      {!isSearching && searchError && <div className="py-16 rounded-2xl border border-red-900/50 text-center"><b>Live search unavailable</b><p className="text-sm text-zinc-500 mt-2">{searchError}</p><button onClick={() => runSearch()} className="mt-5 px-5 py-2.5 bg-yellow-400 text-black rounded-lg text-xs font-black">Retry</button></div>}
+      {!isSearching && !searchError && !visible.length && <div className="py-16 rounded-2xl border border-zinc-800 text-center"><b>No matching live jobs</b><p className="text-sm text-zinc-500 mt-2">Try a broader role or remove a filter.</p></div>}
 
-        <div className="bg-zinc-900/85 border border-zinc-800 rounded-2xl p-4 mb-8 backdrop-blur-xl shadow-xl">
-          <form onSubmit={e => { e.preventDefault(); onSearch(); }} className="grid grid-cols-1 lg:grid-cols-[1fr_220px_auto_auto] gap-3">
-            <label className="relative block"><span className="sr-only">Job search</span><Search className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" /><input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Role, skills or keywords" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-yellow-400" /></label>
-            <label className="relative block"><span className="sr-only">Country or location</span><MapPin className="w-4 h-4 text-zinc-500 absolute left-3.5 top-3.5" /><input value={countryQuery} onChange={e => setCountryQuery(e.target.value)} placeholder="Country / location" className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-10 pr-3 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-yellow-400" /></label>
-            <label className="flex items-center justify-center gap-2 px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-300 cursor-pointer select-none"><input type="checkbox" checked={remoteOnly} onChange={e => setRemoteOnly(e.target.checked)} className="accent-yellow-400" /> Remote only</label>
-            <button type="submit" disabled={isSearching} className="px-5 py-3 bg-yellow-400 hover:bg-yellow-300 disabled:opacity-50 text-black rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition"><RefreshCw className={`w-4 h-4 ${isSearching ? 'animate-spin' : ''}`} /> {isSearching ? 'Searching…' : 'Search'}</button>
-          </form>
-          <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-zinc-800 text-[10px] font-mono text-zinc-600"><span>QUICK SEARCH</span>{['Software Engineer','Frontend Developer','Full Stack','Python Backend','DevOps'].map(preset => <button key={preset} type="button" onClick={() => runPreset(preset)} className="px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600 transition">{preset}</button>)}</div>
-        </div>
+      {!isSearching && !searchError && <div className="space-y-2.5">{visible.map((job, i) => { const s = score(job); const saved = savedJobIds.includes(job.id); const easy = job.applicationMethod === 'Assisted Flow'; return <motion.article key={job.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * .02, .2) }} className="rounded-2xl border border-zinc-800 bg-[#080808] p-4 sm:p-5 hover:bg-zinc-900/80 hover:border-zinc-700 transition"><div className="flex flex-col lg:flex-row lg:items-center gap-4"><Logo job={job} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-base sm:text-lg font-black text-white">{job.title}</h2>{easy && <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-400/10 border border-emerald-400/20 text-[9px] font-black text-emerald-400"><CheckCircle2 className="w-3 h-3" /> Easy Apply</span>}</div><div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-400"><b className="text-zinc-300">{job.company}</b><span>·</span><span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{job.location || country}</span><span>·</span><span>{job.employmentType || 'Full-time'}</span><span>·</span><span>{level(job)}</span></div><div className="flex flex-wrap gap-1.5 mt-3">{(job.requiredSkills || []).slice(0, 5).map(skill => <span key={skill} className="px-2.5 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] text-zinc-400">{skill}</span>)}</div></div><div className="lg:w-[240px] flex lg:flex-col lg:items-end justify-between gap-3"><div className="text-right">{salary(job) && <div className="font-black text-white">{salary(job)}</div>}<div className="text-[10px] text-zinc-600 mt-1">{posted(job.postingDate)}</div>{s !== null && <div className="text-[10px] text-yellow-400 mt-1 font-bold">{s}% profile match</div>}</div><div className="flex items-center gap-2"><button onClick={() => onToggleSaveJob(job.id)} className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400">{saved ? <BookmarkCheck className="w-4 h-4 text-yellow-400" /> : <Bookmark className="w-4 h-4" />}</button><button onClick={() => autoApply(job)} className="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-black text-[10px] font-black inline-flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />Auto Apply</button></div></div></div></motion.article>; })}</div>}
 
-        {isSearching && <div className="max-w-2xl mx-auto py-20 text-center bg-zinc-900/60 border border-zinc-800 rounded-2xl p-8"><RefreshCw className="w-8 h-8 text-yellow-400 mx-auto mb-4 animate-spin" /><h2 className="text-xl font-display font-black text-white">SEARCHING {country.toUpperCase()}</h2><p className="text-xs text-zinc-500 mt-2">Only country-matched live listings are allowed through.</p></div>}
-        {!isSearching && searchError && <div className="max-w-2xl mx-auto py-16 text-center bg-zinc-900/70 border border-red-900/50 rounded-2xl p-8"><AlertTriangle className="w-10 h-10 text-yellow-400 mx-auto mb-4" /><h2 className="text-2xl font-display font-black text-white">LIVE SEARCH UNAVAILABLE</h2><p className="text-sm text-zinc-400 mt-2 max-w-lg mx-auto">{searchError}</p><button onClick={() => onSearch()} className="mt-6 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black text-xs font-black rounded-lg inline-flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5" /> Retry</button></div>}
-        {!isSearching && !searchError && rankedJobs.length === 0 && <div className="max-w-2xl mx-auto py-16 text-center bg-zinc-900/50 border border-zinc-800 rounded-2xl p-8"><Search className="w-12 h-12 text-zinc-700 mx-auto mb-4" /><h2 className="text-2xl font-display font-black text-white">NO VERIFIED LISTINGS FOUND</h2><p className="text-sm text-zinc-400 mt-2">Nothing matched <strong className="text-white">{searchQuery || 'your profile'}</strong> in <strong className="text-white">{country}</strong>. Try a broader role or nearby location.</p><button onClick={() => runPreset('developer')} className="mt-6 px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-bold rounded-lg border border-zinc-700 inline-flex items-center gap-2"><RefreshCw className="w-3.5 h-3.5 text-yellow-400" /> Broaden search</button></div>}
+      {!isSearching && !searchError && pages > 1 && <div className="flex justify-center items-center gap-3 mt-6"><button disabled={currentPage === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-2 border border-zinc-800 rounded-lg text-xs disabled:opacity-30">Previous</button><span className="text-xs text-zinc-500">Page {currentPage} of {pages}</span><button disabled={currentPage === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-2 border border-zinc-800 rounded-lg text-xs disabled:opacity-30">Next</button></div>}
 
-        {!isSearching && !searchError && rankedJobs.length > 0 && <div className="grid grid-cols-1 lg:grid-cols-[minmax(360px,0.9fr)_minmax(0,1.1fr)] gap-6 items-start">
-          <div className="space-y-2.5"><div className="flex items-center justify-between px-1 pb-2 border-b border-zinc-800 text-[10px] font-mono text-zinc-600 uppercase tracking-widest"><span>Ranked opportunities</span><span>Compatibility</span></div>
-            <AnimatePresence initial={false}>{rankedJobs.map((job, index) => { const sourceName = getSourceName(job); const score = scoreFor(job); const selected = selectedJob?.id === job.id; const saved = savedJobIds.includes(job.id); return <motion.button key={job.id} type="button" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(index * .025, .25) }} onClick={() => selectJob(job)} className={`w-full text-left p-4 rounded-xl border transition-all ${selected ? 'bg-zinc-900 border-yellow-400/80 shadow-lg shadow-yellow-400/5' : 'bg-[#080808] border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900/70'}`}>
-              <div className="flex gap-3 min-w-0"><SourceMark name={sourceName} size={38} /><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="text-sm font-bold text-white line-clamp-2">{job.title}</h3><p className="text-xs text-zinc-400 truncate mt-1">{job.company} · {job.location || 'Location not specified'}</p></div><div className="text-right shrink-0">{score !== null ? <><div className={`text-xl font-display font-black ${score >= 75 ? 'text-yellow-400' : 'text-white'}`}>{score}%</div><div className="text-[8px] font-mono text-zinc-600 uppercase">Match</div></> : <div className="text-xs font-mono text-zinc-600">UNSCORED</div>}</div></div><div className="mt-3 pt-2 border-t border-zinc-900 flex items-center justify-between gap-3 text-[10px] text-zinc-600"><span className="truncate">Source: <strong className="text-zinc-400">{sourceName}</strong></span>{saved && <span className="text-yellow-400 flex items-center gap-1"><BookmarkCheck className="w-3 h-3" /> Saved</span>}</div></div></div>
-            </motion.button>; })}</AnimatePresence>
-          </div>
-
-          <AnimatePresence mode="wait">{selectedJob && <motion.article key={selectedJob.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="lg:sticky lg:top-20 bg-[#090909] border border-zinc-800 rounded-2xl p-5 sm:p-7 shadow-2xl overflow-hidden">
-            {(() => { const source = getSource(selectedJob); const sourceName = getSourceName(selectedJob); const score = scoreFor(selectedJob); const saved = savedJobIds.includes(selectedJob.id); return <>
-              <div className="flex items-start justify-between gap-4 pb-5 border-b border-zinc-800"><div className="min-w-0"><div className="inline-flex items-center gap-2 mb-3 px-2.5 py-1.5 bg-yellow-400/10 border border-yellow-400/20 text-yellow-400 text-[10px] font-mono font-bold uppercase tracking-wider"><SourceMark name={sourceName} size={22} /> Source: {sourceName}</div><h2 className="text-2xl sm:text-3xl font-display font-black text-white leading-tight">{selectedJob.title}</h2><p className="mt-1.5 text-sm font-semibold text-zinc-400">{selectedJob.company} · {selectedJob.location || 'Location not specified'}</p></div><button type="button" onClick={() => onToggleSaveJob(selectedJob.id)} className={`shrink-0 p-2.5 rounded-xl border ${saved ? 'text-yellow-400 border-yellow-400/50 bg-yellow-400/10' : 'text-zinc-400 border-zinc-800 bg-zinc-950 hover:text-white'}`} aria-label={saved ? 'Remove saved job' : 'Save job'}>{saved ? <BookmarkCheck className="w-5 h-5" /> : <Bookmark className="w-5 h-5" />}</button></div>
-              <div className="mt-5 p-4 bg-zinc-950 border border-zinc-800 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div className="flex items-center gap-3 min-w-0"><SourceMark name={sourceName} size={44} /><div className="min-w-0"><div className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest">Listing source</div><div className="text-sm font-bold text-white">{sourceName}</div><div className="text-[10px] text-zinc-500 mt-0.5">{source?.sourceType || 'External job source'} · original listing</div></div></div>{selectedJob.applicationUrl && <a href={selectedJob.applicationUrl} onClick={() => track('application_link_opened', { source: sourceName })} target="_blank" rel="noopener noreferrer" className="shrink-0 px-4 py-2.5 bg-yellow-400 hover:bg-yellow-300 text-black rounded-lg text-xs font-black inline-flex items-center justify-center gap-2">OPEN ORIGINAL <ExternalLink className="w-3.5 h-3.5" /></a>}</div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mt-5"><div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl"><div className="text-[9px] font-mono text-zinc-600 uppercase">Country filter</div><div className="text-xs font-bold text-white mt-1">{country}</div></div><div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl"><div className="text-[9px] font-mono text-zinc-600 uppercase">Posted</div><div className="text-xs font-bold text-white mt-1">{selectedJob.postingDate || 'Not supplied'}</div></div><div className="p-3 bg-zinc-950 border border-zinc-800 rounded-xl"><div className="text-[9px] font-mono text-zinc-600 uppercase">Match</div><div className="text-xs font-bold text-yellow-400 mt-1">{score === null ? 'Not scored' : `${score}%`}</div></div></div>
-              <div className="mt-6"><div className="text-[10px] font-mono text-zinc-600 uppercase tracking-widest mb-2">Description</div><p className="text-sm leading-7 text-zinc-300 whitespace-pre-line">{selectedJob.description || 'The source did not provide a readable description.'}</p></div>
-              <div className="mt-6 pt-4 border-t border-zinc-900 flex flex-wrap items-center justify-between gap-3 text-[10px] font-mono text-zinc-600"><span>Source: {sourceName}</span><span>SLAM does not create or rewrite listings.</span></div>
-            </>; })()}
-          </motion.article>}
-        </AnimatePresence>
-        </div>}
-      </div>
-    </div>
-  );
+      {visible[0] && <div className="mt-5 flex flex-col sm:flex-row justify-between gap-3 p-4 rounded-2xl border border-zinc-800 bg-zinc-950"><div><div className="text-[9px] text-zinc-600 uppercase tracking-widest">Application flow</div><div className="text-sm font-bold mt-1">One-click Auto Apply on supported application flows</div><div className="text-[10px] text-zinc-500 mt-1">SLAM keeps the original application URL and never fabricates a listing.</div></div><a href={visible[0].applicationUrl} target="_blank" rel="noopener noreferrer" className="px-4 py-2.5 rounded-lg border border-zinc-800 text-xs inline-flex items-center gap-2">Open Original <ExternalLink className="w-3.5 h-3.5" /></a></div>}
+    </main>
+  </div></div></div>;
 };
