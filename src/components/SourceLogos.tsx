@@ -13,7 +13,7 @@ const logos: Record<Exclude<Provider, 'remoteok'>, LogoMeta> = {
   linkedin: { site: 'https://cdn.simpleicons.org/linkedin/0A66C2', label: 'LinkedIn' },
   indeed: { site: 'https://cdn.simpleicons.org/indeed/2164F3', label: 'Indeed' },
   glassdoor: { site: 'https://cdn.simpleicons.org/glassdoor/00A264', label: 'Glassdoor' },
-  wellfound: { site: 'https://cdn.simpleicons.org/wellfound/FFFFFF', label: 'Wellfound' },
+  wellfound: { site: 'https://cdn.simpleicons.org/wellfound/111111', label: 'Wellfound' },
   instahyre: { site: 'https://www.instahyre.com/favicon.ico', label: 'Instahyre' },
   naukri: { site: 'https://www.naukri.com/favicon.ico', label: 'Naukri' },
   workindia: { site: 'https://www.workindia.in/favicon.ico', label: 'WorkIndia' },
