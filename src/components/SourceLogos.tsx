@@ -5,22 +5,24 @@ interface LogoProps {
   size?: number;
 }
 
-type Provider = 'linkedin' | 'indeed' | 'glassdoor' | 'wellfound' | 'workindia' | 'instahyre' | 'adzuna';
+type Provider = 'linkedin' | 'indeed' | 'glassdoor' | 'wellfound' | 'workindia' | 'instahyre' | 'adzuna' | 'jobicy' | 'remoteok';
 
 const logos: Record<Provider, { site: string; label: string }> = {
-  linkedin: { site: 'https://cdn.simpleicons.org/linkedin', label: 'LinkedIn' },
-  indeed: { site: 'https://cdn.simpleicons.org/indeed', label: 'Indeed' },
-  glassdoor: { site: 'https://cdn.simpleicons.org/glassdoor', label: 'Glassdoor' },
+  linkedin: { site: 'https://www.linkedin.com/favicon.ico', label: 'LinkedIn' },
+  indeed: { site: 'https://www.indeed.com/favicon.ico', label: 'Indeed' },
+  glassdoor: { site: 'https://www.glassdoor.com/favicon.ico', label: 'Glassdoor' },
   wellfound: { site: 'https://wellfound.com/favicon.ico', label: 'Wellfound' },
   workindia: { site: 'https://www.workindia.in/favicon.ico', label: 'WorkIndia' },
   instahyre: { site: 'https://www.instahyre.com/favicon.ico', label: 'Instahyre' },
-  adzuna: { site: 'https://cdn.simpleicons.org/adzuna', label: 'Adzuna' },
+  adzuna: { site: 'https://www.adzuna.com/favicon.ico', label: 'Adzuna' },
+  jobicy: { site: 'https://jobicy.com/favicon.ico', label: 'Jobicy' },
+  remoteok: { site: 'https://remoteok.com/favicon.ico', label: 'Remote OK' },
 };
 
 const BrandMark: React.FC<LogoProps & { provider: Provider }> = ({ provider, className = 'w-10 h-10', size }) => {
   const meta = logos[provider];
   const [failed, setFailed] = React.useState(false);
-  const px = size ?? 40;
+  const px = size ?? 48;
 
   if (failed) {
     return <span className="inline-flex items-center justify-center rounded-xl bg-zinc-900 border border-zinc-700 text-[11px] font-black text-white" style={{ width: px, height: px }} aria-label={`${meta.label} logo fallback`}>{meta.label.slice(0, 1).toUpperCase()}</span>;
@@ -28,7 +30,7 @@ const BrandMark: React.FC<LogoProps & { provider: Provider }> = ({ provider, cla
 
   return (
     <span className="inline-flex items-center justify-center rounded-xl bg-white border border-white/10 shadow-sm shrink-0 overflow-hidden" style={{ width: px, height: px }}>
-      <img src={meta.site} width={px} height={px} className={`${className} object-contain p-1.5`} alt={`${meta.label} logo`} loading="eager" decoding="async" onError={() => setFailed(true)} />
+      <img src={meta.site} width={px} height={px} className={`${className} object-contain p-1`} alt={`${meta.label} logo`} loading="eager" decoding="async" onError={() => setFailed(true)} />
     </span>
   );
 };
@@ -40,6 +42,8 @@ export const WellfoundLogo: React.FC<LogoProps> = (props) => <BrandMark provider
 export const WorkIndiaLogo: React.FC<LogoProps> = (props) => <BrandMark provider="workindia" {...props} />;
 export const InstahyreLogo: React.FC<LogoProps> = (props) => <BrandMark provider="instahyre" {...props} />;
 export const AdzunaLogo: React.FC<LogoProps> = (props) => <BrandMark provider="adzuna" {...props} />;
+export const JobicyLogo: React.FC<LogoProps> = (props) => <BrandMark provider="jobicy" {...props} />;
+export const RemoteOKLogo: React.FC<LogoProps> = (props) => <BrandMark provider="remoteok" {...props} />;
 
 export const SOURCE_URLS = {
   linkedin: 'https://www.linkedin.com/jobs/',
@@ -49,4 +53,6 @@ export const SOURCE_URLS = {
   workindia: 'https://www.workindia.in/',
   instahyre: 'https://www.instahyre.com/',
   adzuna: 'https://www.adzuna.com/',
+  jobicy: 'https://jobicy.com/',
+  remoteok: 'https://remoteok.com/',
 } as const;
