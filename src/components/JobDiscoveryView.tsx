@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { track } from '@vercel/analytics';
 import { motion } from 'framer-motion';
 import { Bookmark, BookmarkCheck, CheckCircle2, ExternalLink, MapPin, Search, ShieldCheck, Sparkles, Zap } from 'lucide-react';
 import { JobPosting, UserProfile, ApplicationAnswer, TailoredResume } from '../types';
-import { AdzunaLogo } from './SourceLogos';
+import { AdzunaLogo, JobicyLogo, RemoteOKLogo } from './SourceLogos';
 
 interface Props {
   jobs: JobPosting[]; userProfile: UserProfile; savedJobIds: string[]; onToggleSaveJob: (id: string) => void;
@@ -24,8 +24,62 @@ function score(job: JobPosting): number | null { const v = (job as any).match?.c
 function level(job: JobPosting): string { const v = String(job.experienceLevel || '').toLowerCase(); if (v.includes('intern')) return 'Internship'; if (v.includes('junior') || v.includes('entry')) return 'Entry Level'; if (v.includes('senior')) return 'Senior Level'; if (v.includes('lead') || v.includes('director') || v.includes('principal')) return 'Lead/Director'; return 'Mid Level'; }
 function age(date: string): number { const t = new Date(date || '').getTime(); return Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 86400000)) : 999; }
 function posted(date: string): string { const d = age(date); return d === 0 ? 'Today' : d === 1 ? '1 day ago' : d < 30 ? `${d} days ago` : date || 'Recently'; }
-function salary(job: JobPosting): string { const min = Number((job as any).salaryMin || 0); const max = Number((job as any).salaryMax || 0); if (!min && !max) return ''; const cur = String((job as any).salaryCurrency || ''); return `${cur ? `${cur} ` : ''}${min || ''}${min && max ? '–' : ''}${max || ''}`; }
-function Logo({ job }: { job: JobPosting }) { return src(job).toLowerCase() === 'adzuna' ? <AdzunaLogo size={52} /> : <div className="w-[52px] h-[52px] rounded-xl bg-zinc-900 border border-zinc-700 flex items-center justify-center text-white font-black text-lg">{src(job).slice(0, 1).toUpperCase()}</div>; }
+function salary(job: JobPosting): string { const min = Number((job as any).salaryMin || (job as any).minSalary || 0); const max = Number((job as any).salaryMax || (job as any).maxSalary || 0); if (!min && !max) return ''; const cur = String((job as any).salaryCurrency || (job as any).currency || ''); return `${cur ? `${cur} ` : ''}${min || ''}${min && max ? '–' : ''}${max || ''}`; }
+
+const logoCache = new Map<string, string | null>();
+const logoRequests = new Map<string, Promise<string | null>>();
+const normalizeCompany = (value: string) => value.toLowerCase().replace(/\b(inc|incorporated|corp|corporation|co|company|ltd|limited|llc|llp|plc|gmbh|ag|sa|srl|spa|bv|nv|ab|oy|pty|pvt|private|group|holdings|technologies|solutions|services)\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+const companyMatch = (wanted: string, candidate: string) => { const a = normalizeCompany(wanted); const b = normalizeCompany(candidate); if (!a || !b) return false; if (a === b || a.includes(b) || b.includes(a)) return true; const aa = new Set(a.split(' ')); const bb = new Set(b.split(' ')); const overlap = [...aa].filter(x => bb.has(x)).length / Math.max(aa.size, bb.size); return overlap >= 0.6; };
+
+async function resolveCompanyLogo(company: string): Promise<string | null> {
+  const key = normalizeCompany(company);
+  if (!key) return null;
+  if (logoCache.has(key)) return logoCache.get(key) || null;
+  if (logoRequests.has(key)) return logoRequests.get(key)!;
+  const request = fetch(`https://autocomplete.clearbit.com/v1/companies/suggest?query=${encodeURIComponent(company)}`, { headers: { Accept: 'application/json' } })
+    .then(async response => {
+      if (!response.ok) return null;
+      const data = await response.json() as Array<{ name?: string; domain?: string }>;
+      const match = data.find(item => companyMatch(company, String(item?.name || '')));
+      const domain = String(match?.domain || '').trim();
+      if (!domain) return null;
+      return `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=128`;
+    })
+    .catch(() => null);
+  logoRequests.set(key, request);
+  const result = await request;
+  logoCache.set(key, result);
+  return result;
+}
+
+function SourceFallback({ source, size = 56 }: { source: string; size?: number }) {
+  const value = source.toLowerCase();
+  if (value === 'adzuna') return <AdzunaLogo size={size} />;
+  if (value === 'jobicy') return <JobicyLogo size={size} />;
+  if (value === 'remote ok') return <RemoteOKLogo size={size} />;
+  return <div className="inline-flex items-center justify-center rounded-xl bg-zinc-900 border border-zinc-700 text-white font-black" style={{ width: size, height: size }}>{source.slice(0, 1).toUpperCase()}</div>;
+}
+
+function CompanyLogo({ job }: { job: JobPosting }) {
+  const source = src(job);
+  const direct = String((job as any).companyLogo || (job as any).company_logo || '').trim();
+  const [logo, setLogo] = useState<string | null>(direct || null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setFailed(false);
+    if (direct) { setLogo(direct); return () => { alive = false; }; }
+    setLogo(null);
+    void resolveCompanyLogo(String(job.company || '')).then(url => { if (alive) setLogo(url); });
+    return () => { alive = false; };
+  }, [job.company, direct]);
+
+  if (logo && !failed) {
+    return <div className="w-[58px] h-[58px] rounded-2xl bg-white border border-white/10 shadow-lg shrink-0 flex items-center justify-center overflow-hidden"><img src={logo} alt={`${job.company} logo`} className="w-[46px] h-[46px] object-contain" loading="lazy" decoding="async" onError={() => setFailed(true)} /></div>;
+  }
+  return <SourceFallback source={source} size={58} />;
+}
 
 export const JobDiscoveryView: React.FC<Props> = ({ jobs, userProfile, savedJobIds, onToggleSaveJob, onLaunchAutomation, searchQuery, setSearchQuery, countryQuery, setCountryQuery, remoteOnly, setRemoteOnly, onSearch, isSearching, searchError = '' }) => {
   const [jobType, setJobType] = useState<'All' | 'Remote' | 'On-site' | 'Hybrid'>('All');
@@ -37,14 +91,13 @@ export const JobDiscoveryView: React.FC<Props> = ({ jobs, userProfile, savedJobI
   const country = userProfile.country || countryQuery || 'India';
 
   const filtered = useMemo(() => {
-    // The backend has already performed the semantic job search. Do not apply the raw search string as a second exact-text filter: that was the reason broad profile searches could collapse to zero results.
     return [...jobs].filter(job => {
       if (jobType !== 'All' && job.remoteType !== jobType) return false;
       if (remoteOnly && !job.remote) return false;
       if (levelFilter !== 'All' && level(job) !== levelFilter) return false;
       const d = age(job.postingDate); if (dateFilter === 'Last 24 hours' && d > 0) return false; if (dateFilter === 'Last 7 days' && d > 7) return false; if (dateFilter === 'Last 30 days' && d > 30) return false;
       return true;
-    }).sort((a, b) => sort === 'Newest' ? age(a.postingDate) - age(b.postingDate) : sort === 'Salary' ? Number((b as any).salaryMax || 0) - Number((a as any).salaryMax || 0) : (score(b) ?? 0) - (score(a) ?? 0));
+    }).sort((a, b) => sort === 'Newest' ? age(a.postingDate) - age(b.postingDate) : sort === 'Salary' ? Number((b as any).salaryMax || (b as any).maxSalary || 0) - Number((a as any).salaryMax || (a as any).maxSalary || 0) : (score(b) ?? 0) - (score(a) ?? 0));
   }, [jobs, searchQuery, jobType, remoteOnly, levelFilter, dateFilter, sort]);
 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
@@ -72,7 +125,7 @@ export const JobDiscoveryView: React.FC<Props> = ({ jobs, userProfile, savedJobI
       {!isSearching && searchError && <div className="py-16 rounded-2xl border border-red-900/50 text-center"><b>Live search unavailable</b><p className="text-sm text-zinc-500 mt-2">{searchError}</p><button onClick={() => runSearch()} className="mt-5 px-5 py-2.5 bg-yellow-400 text-black rounded-lg text-xs font-black">Retry</button></div>}
       {!isSearching && !searchError && !visible.length && <div className="py-16 rounded-2xl border border-zinc-800 text-center"><b>No matching live jobs</b><p className="text-sm text-zinc-500 mt-2">Try a broader role or remove a filter.</p></div>}
 
-      {!isSearching && !searchError && <div className="space-y-2.5">{visible.map((job, i) => { const s = score(job); const saved = savedJobIds.includes(job.id); const easy = job.applicationMethod === 'Assisted Flow'; return <motion.article key={job.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * .02, .2) }} className="rounded-2xl border border-zinc-800 bg-[#080808] p-4 sm:p-5 hover:bg-zinc-900/80 hover:border-zinc-700 transition"><div className="flex flex-col lg:flex-row lg:items-center gap-4"><Logo job={job} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-base sm:text-lg font-black text-white">{job.title}</h2>{easy && <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-400/10 border border-emerald-400/20 text-[9px] font-black text-emerald-400"><CheckCircle2 className="w-3 h-3" /> Easy Apply</span>}</div><div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-400"><b className="text-zinc-300">{job.company}</b><span>·</span><span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{job.location || country}</span><span>·</span><span>{job.employmentType || 'Full-time'}</span><span>·</span><span>{level(job)}</span></div><div className="flex flex-wrap gap-1.5 mt-3">{(job.requiredSkills || []).slice(0, 5).map(skill => <span key={skill} className="px-2.5 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] text-zinc-400">{skill}</span>)}</div></div><div className="lg:w-[240px] flex lg:flex-col lg:items-end justify-between gap-3"><div className="text-right">{salary(job) && <div className="font-black text-white">{salary(job)}</div>}<div className="text-[10px] text-zinc-600 mt-1">{posted(job.postingDate)}</div>{s !== null && <div className="text-[10px] text-yellow-400 mt-1 font-bold">{s}% profile match</div>}</div><div className="flex items-center gap-2"><button onClick={() => onToggleSaveJob(job.id)} className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400">{saved ? <BookmarkCheck className="w-4 h-4 text-yellow-400" /> : <Bookmark className="w-4 h-4" />}</button><button onClick={() => autoApply(job)} className="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-black text-[10px] font-black inline-flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />Auto Apply</button></div></div></div></motion.article>; })}</div>}
+      {!isSearching && !searchError && <div className="space-y-2.5">{visible.map((job, i) => { const s = score(job); const saved = savedJobIds.includes(job.id); const easy = job.applicationMethod === 'Assisted Flow'; return <motion.article key={job.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i * .02, .2) }} className="rounded-2xl border border-zinc-800 bg-[#080808] p-4 sm:p-5 hover:bg-zinc-900/80 hover:border-zinc-700 transition"><div className="flex flex-col lg:flex-row lg:items-center gap-4"><CompanyLogo job={job} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h2 className="text-base sm:text-lg font-black text-white">{job.title}</h2>{easy && <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-400/10 border border-emerald-400/20 text-[9px] font-black text-emerald-400"><CheckCircle2 className="w-3 h-3" /> Easy Apply</span>}</div><div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-400"><b className="text-zinc-300">{job.company}</b><span>·</span><span className="inline-flex items-center gap-1"><MapPin className="w-3 h-3" />{job.location || country}</span><span>·</span><span>{job.employmentType || 'Full-time'}</span><span>·</span><span>{level(job)}</span></div><div className="flex flex-wrap gap-1.5 mt-3">{(job.requiredSkills || []).slice(0, 5).map(skill => <span key={skill} className="px-2.5 py-1 rounded-full bg-zinc-900 border border-zinc-800 text-[9px] text-zinc-400">{skill}</span>)}</div></div><div className="lg:w-[240px] flex lg:flex-col lg:items-end justify-between gap-3"><div className="text-right">{salary(job) && <div className="font-black text-white">{salary(job)}</div>}<div className="text-[10px] text-zinc-600 mt-1">{posted(job.postingDate)}</div>{s !== null && <div className="text-[10px] text-yellow-400 mt-1 font-bold">{s}% profile match</div>}</div><div className="flex items-center gap-2"><button onClick={() => onToggleSaveJob(job.id)} className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-950 text-zinc-400">{saved ? <BookmarkCheck className="w-4 h-4 text-yellow-400" /> : <Bookmark className="w-4 h-4" />}</button><button onClick={() => autoApply(job)} className="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-black text-[10px] font-black inline-flex items-center gap-1.5"><Zap className="w-3.5 h-3.5" />Auto Apply</button></div></div></div></motion.article>; })}</div>}
 
       {!isSearching && !searchError && pages > 1 && <div className="flex justify-center items-center gap-3 mt-6"><button disabled={currentPage === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-2 border border-zinc-800 rounded-lg text-xs disabled:opacity-30">Previous</button><span className="text-xs text-zinc-500">Page {currentPage} of {pages}</span><button disabled={currentPage === pages} onClick={() => setPage(p => p + 1)} className="px-3 py-2 border border-zinc-800 rounded-lg text-xs disabled:opacity-30">Next</button></div>}
 
