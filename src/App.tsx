@@ -52,10 +52,10 @@ export default function App() {
     const country=(locationOverride??locationQuery).trim()||userProfile.country;
     setIsSearching(true); setSearchError(''); setJobs([]);
     try{
-      const response=await fetch(`${API}/api/jobs/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,location:country,country:userProfile.country,remote:remoteOnly,limit:120,profile:userProfile})});
+      const response=await fetch(`${API}/api/jobs/search`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query,location:country,country,remote:remoteOnly,limit:120,profile:userProfile})});
       const raw=await response.text(); let data:any={}; try{data=raw?JSON.parse(raw):{};}catch{throw new Error('The live job service returned invalid data. Please try again.');}
       if(!response.ok)throw new Error(data.error||data.detail||`Job discovery failed (${response.status}).`);
-      const resultJobs=Array.isArray(data.jobs)?data.jobs:[]; setJobs(resultJobs); track('job_search',{result_count:resultJobs.length,remote_only:remoteOnly,country:userProfile.country}); if(resultJobs.length===0)setSearchError(data.warning||'No verified live listings matched these filters.');
+      const resultJobs=Array.isArray(data.jobs)?data.jobs:[]; setJobs(resultJobs); track('job_search',{result_count:resultJobs.length,remote_only:remoteOnly,country}); if(resultJobs.length===0)setSearchError(data.warning||'No verified live listings matched these filters.');
     }catch(error){setJobs([]);setSearchError(error instanceof Error?error.message:'Live job discovery is temporarily unavailable.');}
     finally{setIsSearching(false);}
   },[authUser,userProfile,searchQuery,locationQuery,remoteOnly]);
