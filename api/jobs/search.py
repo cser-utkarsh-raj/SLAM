@@ -3,13 +3,13 @@ from __future__ import annotations
 import asyncio, html, os, re
 from datetime import datetime, timezone
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import quote, urlsplit, urlunsplit
 
 import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-app = FastAPI(title="SLAM Live Job Discovery", version="8.1.0")
+app = FastAPI(title="SLAM Live Job Discovery", version="8.1.1")
 
 COUNTRY_CODES={"india":"in","ind":"in","in":"in","south africa":"za","za":"za","united states":"us","usa":"us","us":"us","united kingdom":"gb","uk":"gb","gb":"gb","canada":"ca","ca":"ca","australia":"au","au":"au","germany":"de","de":"de","france":"fr","fr":"fr","netherlands":"nl","holland":"nl","nl":"nl","ireland":"ie","ie":"ie","singapore":"sg","sg":"sg","new zealand":"nz","nz":"nz","spain":"es","es":"es","italy":"it","it":"it","brazil":"br","br":"br","uae":"ae","united arab emirates":"ae","ae":"ae"}
 ALIASES={"in":["india","indian","hyderabad","patna","jaipur","mumbai","delhi","new delhi","bengaluru","bangalore","pune","chennai","noida","gurgaon","gurugram","kolkata","ahmedabad","kochi","lucknow"],"za":["south africa","cape town","johannesburg","pretoria","durban","port elizabeth"],"us":["united states","usa","u.s.","new york","california","texas","florida","washington","massachusetts","illinois","seattle","austin","boston","chicago","san francisco","los angeles"],"gb":["united kingdom","uk","u.k.","england","scotland","wales","london","manchester","birmingham","edinburgh","glasgow"],"ca":["canada","toronto","vancouver","montreal","calgary","ottawa","ontario","quebec"],"au":["australia","sydney","melbourne","brisbane","perth","adelaide"],"de":["germany","berlin","munich","frankfurt","hamburg","cologne","stuttgart"],"fr":["france","paris","lyon","marseille","toulouse"],"nl":["netherlands","holland","amsterdam","rotterdam","utrecht"],"ie":["ireland","dublin","cork","galway"],"sg":["singapore"],"nz":["new zealand","auckland","wellington","christchurch"],"es":["spain","madrid","barcelona","valencia"],"it":["italy","rome","milan","turin"],"br":["brazil","sao paulo","rio de janeiro","brasilia"],"ae":["uae","united arab emirates","dubai","abu dhabi"]}
@@ -61,8 +61,7 @@ def query_terms(query:str)->list[str]:
 def title_matches_query(title:str,query:str)->bool:
     terms=query_terms(query)
     if not terms:return True
-    t=norm(title).replace("typescript.js","typescript").replace("node.js","node js")
-    aliases={"ts":"typescript","js":"javascript","nodejs":"node","reactjs":"react","golang":"go"};hits=0
+    t=norm(title).replace("typescript.js","typescript").replace("node.js","node js");aliases={"ts":"typescript","js":"javascript","nodejs":"node","reactjs":"react","golang":"go"};hits=0
     for term in terms:
         term=aliases.get(term,term)
         if token(term,t) or term.replace(" ","") in t.replace(" ",""):hits+=1
@@ -117,6 +116,12 @@ def match_score(profile:dict[str,Any],title:str,required:list[str],location_scor
     skills={norm(x) for x in (profile.get("skills",[])+profile.get("technologies",[]))};matched=[x for x in required if norm(x) in skills];missing=[x for x in required if norm(x) not in skills];exp=float(profile.get("yearsOfExperience") or 0);exp_score=100 if minimum_years<=0 else max(0,min(100,round(100-max(0,minimum_years-exp)*25)));targets=profile_roles(profile);role_score=100 if targets and any(r in norm(title) or norm(title) in r for r in targets) else 65;skill_score=round(100*len(matched)/len(required)) if required else 55;total=round(skill_score*.5+exp_score*.2+role_score*.2+location_score*.1)
     return {"compatibilityScore":total,"opportunityScore":total,"matchedSkills":matched,"partialSkills":[],"missingSkills":missing,"strengths":[f"Matches {len(matched)} of {len(required)} detected skills"] if required else [],"concerns":[f"Potential skill gap: {', '.join(missing[:5])}"] if missing else [],"isEligible":location_score>=70,"eligibilityReason":"Country/location eligible","confidence":"Estimated","breakdown":{"skillsScore":skill_score,"experienceScore":exp_score,"roleScore":role_score,"locationScore":location_score,"qualificationScore":70}}
 
+def logo_for_company(company:str,existing:str)->str:
+    if existing:return existing
+    key=os.getenv("LOGO_DEV_PUBLISHABLE_KEY") or os.getenv("VITE_LOGO_DEV_PUBLISHABLE_KEY")
+    if not key or not company:return ""
+    return f"https://img.logo.dev/name/{quote(company)}?token={quote(key)}&size=128&format=png&fallback=monogram"
+
 def normalize_job(source:str,item:dict[str,Any],profile:dict[str,Any],code:str,requested:str,explicit_query:str="")->dict[str,Any]|None:
     title=clean(item.get("title") or item.get("jobTitle") or item.get("position"));cv=item.get("company") or item.get("companyName") or item.get("company_name");company=clean(cv.get("display_name") if isinstance(cv,dict) else cv);location=adzuna_location(item.get("location")) if source=="Adzuna" else clean(item.get("jobGeo") or item.get("jobLocation") or item.get("location") or item.get("locationName") or item.get("geo") or "Remote");description=clean(item.get("jobDescription") or item.get("description") or item.get("descriptionText") or item.get("jobExcerpt"));url=str(item.get("redirect_url") or item.get("apply_url") or item.get("url") or "").strip();date=parse_date(item.get("created") or item.get("pubDate") or item.get("date") or item.get("published") or item.get("created_at"));remote=bool(item.get("remote")) or source in {"Jobicy","Remote OK"} or "remote" in norm(f"{title} {location}")
     if not title or not company or not url or not is_fresh(date):return None
@@ -124,7 +129,7 @@ def normalize_job(source:str,item:dict[str,Any],profile:dict[str,Any],code:str,r
     if code!="de" and likely_german(f"{title} {description}"):return None
     allowed,reason,location_score=location_fit(code,requested,location,description,remote)
     if not allowed:return None
-    required=infer_skills(description);years=infer_years(description);salary_min=item.get("salary_min") or item.get("salaryMin");salary_max=item.get("salary_max") or item.get("salaryMax");currency=item.get("salaryCurrency") or item.get("salary_currency") or "";logo=str(item.get("companyLogo") or item.get("company_logo") or "").strip();domain=clean(item.get("companyDomain") or item.get("company_domain") or "")
+    required=infer_skills(description);years=infer_years(description);salary_min=item.get("salary_min") or item.get("salaryMin");salary_max=item.get("salary_max") or item.get("salaryMax");currency=item.get("salaryCurrency") or item.get("salary_currency") or "";logo=logo_for_company(company,str(item.get("companyLogo") or item.get("company_logo") or "").strip());domain=clean(item.get("companyDomain") or item.get("company_domain") or "")
     job={"id":f"{source.lower().replace(' ','-')}:{item.get('id') or item.get('slug') or canonical_url(url)}","title":title,"normalizedTitle":title,"roleFamily":"","company":company,"companyDomain":domain,"companyLogo":logo,"location":location,"remote":remote,"remoteType":"Remote" if remote else "On-site","employmentType":clean(item.get("contract_time") or item.get("jobType") or "Full-time"),"experienceLevel":clean(item.get("jobLevel") or ""),"minYearsExperience":years,"minSalary":salary_min,"maxSalary":salary_max,"salaryMin":salary_min,"salaryMax":salary_max,"salaryCurrency":currency,"currency":currency,"salaryText":clean(f"{salary_min} - {salary_max}" if salary_min and salary_max else ""),"description":description[:8000],"responsibilities":[],"requirements":required,"requiredSkills":required,"preferredSkills":[],"postingDate":date,"freshnessLabel":"Verified recent source listing","lastSeenAt":datetime.now(timezone.utc).isoformat(),"applicationUrl":url,"primarySource":source,"sourceLabel":"Jobs by Adzuna" if source=="Adzuna" else source,"sourcesList":[{"sourceName":source,"sourceUrl":url,"sourceType":"Live feed","postedDate":date,"isOfficial":False}],"applicationMethod":"External Form","hardRequirements":[],"requiresWorkAuth":False,"locationMatch":reason,"locationScore":location_score}
     job["match"]=match_score(profile,title,required,location_score,years);return job
 
