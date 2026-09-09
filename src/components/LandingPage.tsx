@@ -2,18 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, ExternalLink, Lock, ShieldCheck, Radio } from 'lucide-react';
 import { ConnectionsPanel } from './ConnectionsPanel';
-import { LinkedInLogo, IndeedLogo, GlassdoorLogo, WellfoundLogo, WorkIndiaLogo, InstahyreLogo, AdzunaLogo, SOURCE_URLS } from './SourceLogos';
+import { AdzunaLogo, JobicyLogo, RemoteOKLogo, SOURCE_URLS } from './SourceLogos';
 
 interface Props { onGetStarted: () => void; onSignIn: () => void; }
 
 const sources = [
   { name: 'Adzuna', Logo: AdzunaLogo, status: 'LIVE FEED', href: SOURCE_URLS.adzuna },
-  { name: 'LinkedIn', Logo: LinkedInLogo, status: 'OFFICIAL SITE', href: SOURCE_URLS.linkedin },
-  { name: 'Indeed', Logo: IndeedLogo, status: 'OFFICIAL SITE', href: SOURCE_URLS.indeed },
-  { name: 'Glassdoor', Logo: GlassdoorLogo, status: 'OFFICIAL SITE', href: SOURCE_URLS.glassdoor },
-  { name: 'Wellfound', Logo: WellfoundLogo, status: 'OFFICIAL SITE', href: SOURCE_URLS.wellfound },
-  { name: 'WorkIndia', Logo: WorkIndiaLogo, status: 'OFFICIAL SITE', href: SOURCE_URLS.workindia },
-  { name: 'Instahyre', Logo: InstahyreLogo, status: 'OFFICIAL SITE', href: SOURCE_URLS.instahyre },
+  { name: 'Jobicy', Logo: JobicyLogo, status: 'LIVE FEED', href: SOURCE_URLS.jobicy },
+  { name: 'Remote OK', Logo: RemoteOKLogo, status: 'LIVE FEED', href: SOURCE_URLS.remoteok },
 ];
 
 export const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn }) => {
@@ -71,13 +67,13 @@ export const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn }) => {
       </section>
 
       <section className="py-10 border-b border-zinc-900 bg-[#070707] overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 mb-5 flex items-center justify-between gap-4"><span className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-bold">JOB SOURCES</span><span className="text-[11px] font-mono text-zinc-600 hidden sm:inline">LIVE CONNECTIONS ARE MARKED CLEARLY</span></div>
+        <div className="max-w-7xl mx-auto px-6 mb-5 flex items-center justify-between gap-4"><span className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-bold">LIVE JOB SOURCES</span><span className="text-[11px] font-mono text-zinc-600 hidden sm:inline">ONLY SOURCES SLAM CAN CURRENTLY QUERY</span></div>
         <div className="max-w-7xl mx-auto px-6 overflow-x-auto no-scrollbar">
-          <div className="flex gap-3 min-w-max pb-1">
+          <div className="flex gap-4 min-w-max pb-1">
             {sources.map((source) => (
-              <a key={source.name} href={source.href} target="_blank" rel="noreferrer" className="group w-[180px] sm:w-[195px] border border-zinc-800 bg-zinc-950 rounded-xl p-4 flex flex-col gap-4 hover:border-zinc-600 hover:-translate-y-1 transition-all duration-300">
-                <div className="flex items-center justify-between"><source.Logo size={44} /><ExternalLink className="w-3.5 h-3.5 text-zinc-700 group-hover:text-yellow-400 transition" /></div>
-                <div><div className="text-sm font-bold text-white font-display">{source.name}</div><div className={`mt-1 text-[9px] font-mono tracking-widest ${source.status === 'LIVE FEED' ? 'text-emerald-400' : 'text-zinc-500'}`}>{source.status}</div></div>
+              <a key={source.name} href={source.href} target="_blank" rel="noreferrer" className="group w-[205px] sm:w-[220px] border border-zinc-800 bg-zinc-950 rounded-xl p-5 flex flex-col gap-5 hover:border-zinc-600 hover:-translate-y-1 transition-all duration-300">
+                <div className="flex items-center justify-between"><source.Logo size={58} /><ExternalLink className="w-4 h-4 text-zinc-700 group-hover:text-yellow-400 transition" /></div>
+                <div><div className="text-base font-bold text-white font-display">{source.name}</div><div className="mt-1 text-[9px] font-mono tracking-widest text-emerald-400">{source.status}</div></div>
               </a>
             ))}
           </div>
