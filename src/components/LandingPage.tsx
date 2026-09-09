@@ -2,14 +2,23 @@ import React, { useEffect, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, CheckCircle2, ExternalLink, Lock, ShieldCheck, Radio } from 'lucide-react';
 import { ConnectionsPanel } from './ConnectionsPanel';
-import { AdzunaLogo, JobicyLogo, RemoteOKLogo, SOURCE_URLS } from './SourceLogos';
+import { AdzunaLogo, JobicyLogo, RemoteOKLogo, LinkedInLogo, IndeedLogo, InstahyreLogo, NaukriLogo, GlassdoorLogo, WellfoundLogo, SOURCE_URLS } from './SourceLogos';
 
 interface Props { onGetStarted: () => void; onSignIn: () => void; }
 
-const sources = [
-  { name: 'Adzuna', Logo: AdzunaLogo, status: 'LIVE FEED', href: SOURCE_URLS.adzuna },
-  { name: 'Jobicy', Logo: JobicyLogo, status: 'LIVE FEED', href: SOURCE_URLS.jobicy },
-  { name: 'Remote OK', Logo: RemoteOKLogo, status: 'LIVE FEED', href: SOURCE_URLS.remoteok },
+const liveSources = [
+  { name: 'Adzuna', Logo: AdzunaLogo, status: 'CONNECTED FEED', href: SOURCE_URLS.adzuna },
+  { name: 'Jobicy', Logo: JobicyLogo, status: 'CONNECTED FEED', href: SOURCE_URLS.jobicy },
+  { name: 'Remote OK', Logo: RemoteOKLogo, status: 'CONNECTED FEED', href: SOURCE_URLS.remoteok },
+];
+
+const externalPlatforms = [
+  { name: 'LinkedIn', Logo: LinkedInLogo, href: SOURCE_URLS.linkedin },
+  { name: 'Indeed', Logo: IndeedLogo, href: SOURCE_URLS.indeed },
+  { name: 'Instahyre', Logo: InstahyreLogo, href: SOURCE_URLS.instahyre },
+  { name: 'Naukri', Logo: NaukriLogo, href: SOURCE_URLS.naukri },
+  { name: 'Glassdoor', Logo: GlassdoorLogo, href: SOURCE_URLS.glassdoor },
+  { name: 'Wellfound', Logo: WellfoundLogo, href: SOURCE_URLS.wellfound },
 ];
 
 export const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn }) => {
@@ -67,13 +76,27 @@ export const LandingPage: React.FC<Props> = ({ onGetStarted, onSignIn }) => {
       </section>
 
       <section className="py-10 border-b border-zinc-900 bg-[#070707] overflow-hidden">
-        <div className="max-w-7xl mx-auto px-6 mb-5 flex items-center justify-between gap-4"><span className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-bold">LIVE JOB SOURCES</span><span className="text-[11px] font-mono text-zinc-600 hidden sm:inline">ONLY SOURCES SLAM CAN CURRENTLY QUERY</span></div>
+        <div className="max-w-7xl mx-auto px-6 mb-5 flex items-center justify-between gap-4"><span className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-bold">CONNECTED JOB FEEDS</span><span className="text-[11px] font-mono text-zinc-600 hidden sm:inline">3 SOURCES CURRENTLY QUERYABLE BY SLAM</span></div>
         <div className="max-w-7xl mx-auto px-6 overflow-x-auto no-scrollbar">
           <div className="flex gap-4 min-w-max pb-1">
-            {sources.map((source) => (
+            {liveSources.map((source) => (
               <a key={source.name} href={source.href} target="_blank" rel="noreferrer" className="group w-[205px] sm:w-[220px] border border-zinc-800 bg-zinc-950 rounded-xl p-5 flex flex-col gap-5 hover:border-zinc-600 hover:-translate-y-1 transition-all duration-300">
                 <div className="flex items-center justify-between"><source.Logo size={58} /><ExternalLink className="w-4 h-4 text-zinc-700 group-hover:text-yellow-400 transition" /></div>
                 <div><div className="text-base font-bold text-white font-display">{source.name}</div><div className="mt-1 text-[9px] font-mono tracking-widest text-emerald-400">{source.status}</div></div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="py-10 border-b border-zinc-900 bg-[#050505] overflow-hidden">
+        <div className="max-w-7xl mx-auto px-6 mb-5 flex items-center justify-between gap-4"><div><span className="text-[11px] font-mono uppercase tracking-[0.25em] text-zinc-400 font-bold">MORE JOB PLATFORMS</span><p className="mt-1 text-[10px] font-mono text-zinc-600">Open these platforms directly for their own live search. They are not presented as SLAM feeds.</p></div><span className="text-[10px] font-mono text-zinc-600 hidden sm:inline">EXTERNAL SEARCH</span></div>
+        <div className="max-w-7xl mx-auto px-6 overflow-x-auto no-scrollbar">
+          <div className="flex gap-4 min-w-max pb-1">
+            {externalPlatforms.map((source) => (
+              <a key={source.name} href={source.href} target="_blank" rel="noreferrer" className="group w-[185px] sm:w-[195px] border border-zinc-800 bg-zinc-950 rounded-xl p-4 flex items-center gap-4 hover:border-zinc-600 hover:-translate-y-1 transition-all duration-300">
+                <source.Logo size={52} />
+                <div className="min-w-0"><div className="text-sm font-bold text-white font-display">{source.name}</div><div className="mt-1 text-[9px] font-mono tracking-widest text-zinc-600 group-hover:text-yellow-400 transition">OPEN JOB SEARCH ↗</div></div>
               </a>
             ))}
           </div>
